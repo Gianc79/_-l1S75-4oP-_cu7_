@@ -1,0 +1,8 @@
+{
+  "name": "SpesaSuMisura",
+  "description": "SpesaSuMisura — La tua spesa, come la vuoi tu. Gestione avanzata della lista della spesa, corsie dei negozi e assegnazioni.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "permissions": []
+}
