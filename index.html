@@ -787,7 +787,7 @@ const TRASH_OFFICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 
 const infoPop = (t) => `<div class="info-pop" id="infoPop" hidden>${t}</div>`;
 const stores = ["categories", "products", "stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingLists", "shoppingListItems", "settings", "tombstones", "meta", "savedLists"];
 let db, page = "list", selectedStore = "all", selectedStores = ["all"], editingProductId = null, productReturnPage = "products", productReturnCategoryId = null, manageStoreId = null, routeStoreId = null, routeDragId = null, celebrationShownFor = "", listSearch = "";
-let currentModal = null, toastTimer = null, pageStack = [], filterOutsideHandler = null;
+let currentModal = null, currentModalKeep = false, toastTimer = null, pageStack = [], filterOutsideHandler = null;
 let addItemViewState = { query: "", scrollTop: 0 };
 function selectAllOnFocus(inp) {
   if (!inp || inp.dataset.selectAllBound) return;
@@ -1145,7 +1145,17 @@ modal = function(...a) {
 };
 function closeModal(runOnClose = true) {
   const onClose = currentModal;
+  const keepModal = currentModalKeep;
   currentModal = null;
+  currentModalKeep = false;
+  if (runOnClose && keepModal && typeof onClose === "function") {
+    try {
+      Promise.resolve(onClose()).catch((err) => console.error(err));
+    } catch (err) {
+      console.error(err);
+    }
+    return;
+  }
   $("#modalRoot").innerHTML = "";
   updateScrollTopButton();
   updateFloatingAddButton();
@@ -1159,26 +1169,26 @@ function closeModal(runOnClose = true) {
 }
 function modal(title, body, buttons = [], opts = {}) {
   currentModal = opts.onClose || null;
+  currentModalKeep = !!opts.keepModalOnClose;
   updateFloatingAddButton();
   const closeButton = opts.closeButton ? `<button class="modal-close" id="modalCloseBtn" type="button" aria-label="Chiudi" title="Chiudi">\xD7</button>` : "";
-  $("#modalRoot").innerHTML = `<div class="modal-backdrop ${opts.alignTop ? "modal-top" : ""}" id="modalBackdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title || "Finestra")}" tabindex="-1"><div class="modal-header"><h2>${esc(title)}</h2>${closeButton}</div>${body}${buttons.length ? `<div class="modal-actions">${buttons.map((b, i) => `<button type="button" class="btn ${b.class || "btn-secondary"}" data-modal-action="${i}">${esc(b.label)}</button>`).join("")}</div>` : ""}</section></div>`;
-  const backdrop = $("#modalBackdrop"), modalEl = backdrop.querySelector(".modal");
+  const sectionHtml = `<section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title || "Finestra")}" tabindex="-1"><div class="modal-header"><h2>${esc(title)}</h2>${closeButton}</div>${body}${buttons.length ? `<div class="modal-actions">${buttons.map((b, i) => `<button type="button" class="btn ${b.class || "btn-secondary"}" data-modal-action="${i}">${esc(b.label)}</button>`).join("")}</div>` : ""}</section>`;
+  let backdrop = $("#modalBackdrop");
+  if (backdrop) {
+    backdrop.className = `modal-backdrop ${opts.alignTop ? "modal-top" : ""}`;
+    backdrop.innerHTML = sectionHtml;
+  } else {
+    $("#modalRoot").innerHTML = `<div class="modal-backdrop ${opts.alignTop ? "modal-top" : ""}" id="modalBackdrop">${sectionHtml}</div>`;
+    backdrop = $("#modalBackdrop");
+  }
+  const modalEl = backdrop.querySelector(".modal");
   $("#modalCloseBtn")?.addEventListener("click", () => {
     if (opts.keepModalOnClose && opts.onClose) {
       currentModal = null;
+      currentModalKeep = false;
       opts.onClose();
     } else {
       closeModal();
-    }
-  });
-  backdrop.addEventListener("click", (e) => {
-    if (e.target.id === "modalBackdrop" && opts.backdropClose !== false) {
-      if (opts.keepModalOnClose && opts.onClose) {
-        currentModal = null;
-        opts.onClose();
-      } else {
-        closeModal();
-      }
     }
   });
   $("#modalRoot").querySelectorAll("[data-modal-action]").forEach((el) => el.addEventListener("click", async () => {
@@ -1195,13 +1205,22 @@ function modal(title, body, buttons = [], opts = {}) {
       if (r.bottom > window.innerHeight - 18 || r.top < 70) el.scrollIntoView({ block: "nearest", behavior: "auto" });
     }, 120);
   }));
-  backdrop.addEventListener("click", (e) => {
+  backdrop.onclick = (e) => {
     backdrop.classList.remove("keyboard-open");
     if (!e.target.closest(".custom-dropdown")) {
       backdrop.querySelectorAll(".custom-dropdown-menu").forEach((m) => m.hidden = true);
       backdrop.querySelectorAll(".custom-dropdown-trigger").forEach((t) => t.setAttribute("aria-expanded", "false"));
     }
-  });
+    if (e.target.id === "modalBackdrop" && opts.backdropClose !== false) {
+      if (opts.keepModalOnClose && opts.onClose) {
+        currentModal = null;
+        currentModalKeep = false;
+        opts.onClose();
+      } else {
+        closeModal();
+      }
+    }
+  };
   modalEl.addEventListener("scroll", updateScrollTopButton, { passive: true });
   updateScrollTopButton();
 }
@@ -2585,13 +2604,18 @@ async function openProductForm(productId, returnPage = "products", returnCategor
   const buttons = [{ label: "Annulla", class: "btn-plain", action: () => {
     if (returnPage === "addItem") {
       currentModal = null;
+      currentModalKeep = false;
       openAddItem();
+    } else if (returnPage === "editor") {
+      currentModal = null;
+      currentModalKeep = false;
+      returnFn();
     } else {
       closeModal();
     }
   } }, { label: productId ? "Salva" : "Aggiungi", class: "btn-primary", action: async () => saveProductForm(productId, returnPage, returnCategoryId) }];
   const onClose = returnPage === "editor" ? () => returnFn() : (returnPage === "list" || returnPage === "addItem") ? () => openAddItem() : returnPage === "categoryDetail" ? () => openCategoryForm(returnCategoryId, true) : returnPage === "products" && !productId ? () => renderProducts() : null;
-  modal(productId ? "Dettagli articolo" : "Nuovo articolo", body, buttons, { closeButton: false, backdropClose: false, onClose, alignTop: true, keepModalOnClose: returnPage === "addItem" });
+  modal(productId ? "Dettagli articolo" : "Nuovo articolo", body, buttons, { closeButton: false, backdropClose: false, onClose, alignTop: true, keepModalOnClose: returnPage === "addItem" || returnPage === "editor" });
   $("#productForm").addEventListener("submit", (e) => e.preventDefault());
   wireCustomDropdown("prodUnit");
   wireCustomDropdown("prodCategory");
@@ -2690,14 +2714,17 @@ async function saveProductForm(productId, returnPage, returnCategoryId = null) {
   await txDone(tx);
   if (returnPage === "addItem") {
     currentModal = null;
+    currentModalKeep = false;
     await openAddItem();
     showToast(productId ? "Articolo salvato" : "Articolo aggiunto");
+  } else if (returnPage === "editor") {
+    currentModal = null;
+    currentModalKeep = false;
+    await productReturnFn();
+    showToast("Articolo salvato");
   } else {
     closeModal(false);
-    if (returnPage === "editor") {
-      await productReturnFn();
-      showToast("Articolo salvato");
-    } else if (returnPage === "list" && !productId) {
+    if (returnPage === "list" && !productId) {
       await openNewListItemEditor(prod.id);
     } else if (returnPage === "list") {
       await openAddItem();
