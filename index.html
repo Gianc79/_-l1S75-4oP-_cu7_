@@ -1064,7 +1064,11 @@ body.orientation-locked{overflow:hidden!important}
 .sticky-action-wrap{top:calc(var(--header-h,73px) - 1px)}
 .sticky-filter-wrap{top:calc(var(--header-h,73px) + 52px)}
 .products-search-sticky{top:calc(var(--header-h,73px) + 55px)!important}
-@media(max-width:619px){.sticky-action-wrap{top:calc(var(--header-h,62px) - 1px)}.sticky-filter-wrap{top:calc(var(--header-h,62px) + 52px)}.products-search-sticky{top:calc(var(--header-h,62px) + 55px)!important}}
+.list-filters-box{z-index:8;margin:3px 0 6px}
+.list-store-group{margin-top:8px}
+.list-store-group.is-first{margin-top:2px}
+.category-heading.store-list-heading{position:sticky;top:calc(var(--header-h,73px) + 52px);z-index:7;background:var(--bg);margin:0 -2px 2px;padding:6px 4px 5px}
+@media(max-width:619px){.sticky-action-wrap{top:calc(var(--header-h,62px) - 1px)}.sticky-filter-wrap{top:calc(var(--header-h,62px) + 52px)}.products-search-sticky{top:calc(var(--header-h,62px) + 55px)!important}.category-heading.store-list-heading{top:calc(var(--header-h,62px) + 52px)}}
 </style>
 </head>
 <body>
@@ -3120,7 +3124,7 @@ async function renderList(keepFilterOpen = false) {
   const isListModified = isSavedListModified(_cl, items, pMap, sMap);
   let html = `<div class="toolbar"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}</div><button class="header-icon" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.3" fill="#44546a"/><circle cx="12" cy="12" r="2.3" fill="#44546a"/><circle cx="12" cy="19" r="2.3" fill="#44546a"/></svg></button></div>
   ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : "nessuna lista salvata"}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div><div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi un articolo alla lista</span></button></div>
-  <div class="sticky-filter-wrap"><div class="prod-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid is-single">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "" })}</div></div></div>`;
+  <div class="prod-filters-box list-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid is-single">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "" })}</div></div>`;
   if (!visible.length) html += `<div class="empty" style="margin-top:14px">${items.length ? "Nessun articolo per questo filtro." : "La lista \xE8 vuota.<br>Inizia aggiungendo un articolo."}</div>`;
   else {
     const storeTotals = new Map();
@@ -3154,11 +3158,12 @@ async function renderList(keepFilterOpen = false) {
       const storeKey = sto?.id || "none";
       if (storeKey !== lastStore) {
         const isFirst = lastStore === "";
+        if (!isFirst) html += "</div>";
         const storePart = sto ? storeChipHtml(sto, { className: "store-chip-heading" }) : '<span class="it">SENZA SUPERMERCATO</span>';
         const stStat = storeTotals.get(storeKey);
         const metaParts = [`${stStat.count} ${stStat.count === 1 ? "articolo" : "articoli"}`];
         if (stStat.known > 0) metaParts.push(money(stStat.cents));
-        html += `<div class="category-heading store-list-heading${isFirst ? " is-first" : ""}"><span>${storePart}</span><span class="store-heading-meta">${metaParts.join(" \xB7 ")}</span></div>`;
+        html += `<div class="list-store-group${isFirst ? " is-first" : ""}"><div class="category-heading store-list-heading${isFirst ? " is-first" : ""}"><span>${storePart}</span><span class="store-heading-meta">${metaParts.join(" \xB7 ")}</span></div>`;
         lastStore = storeKey;
       }
       const price = prices.find((x) => x.productId === item.productId && x.storeId === item.storeId);
@@ -3172,6 +3177,7 @@ async function renderList(keepFilterOpen = false) {
       const catHtml = p.categoryId && cMap[p.categoryId] ? esc(catLabel) : `<span class="it">${esc(catLabel)}</span>`;
       html += swipeWrap(`<div class="list-row shopping-list-row ${item.checked ? "checked" : ""}" data-list-item-id="${item.id}"><div class="item-check"><input type="checkbox" aria-label="Segna ${esc(p.name)} come acquistato" data-check-item="${item.id}" ${item.checked ? "checked" : ""}></div><button type="button" class="row-button item-body" data-edit-item="${item.id}" aria-label="Modifica ${esc(p.name)}"><span class="item-top-row"><span class="row-name">${esc(p.name)}</span><span class="row-qty">${qtyText}</span></span><span class="item-bottom-row"><span class="row-cat">${catHtml}</span><span class="row-price${hasPrice ? "" : " is-nd"}">${priceText}</span></span></button></div>`, "swipe-shopping");
     }
+    if (lastStore !== "") html += "</div>";
   }
   html += '<div class="list-spacer" aria-hidden="true"></div>';
   main.innerHTML = html;
