@@ -1045,12 +1045,15 @@ body.orientation-locked{overflow:hidden!important}
 .assign-store-field .custom-dropdown-trigger>span{display:flex;align-items:center;flex:1 1 auto;min-width:0;overflow:hidden}
 .assign-store-field .custom-dropdown-option{height:auto;min-height:42px;padding:7px 11px}
 /* v. 1.56 */
-.prod-filters-box{background:#e3f0fc;border:1.5px solid #b8d2ea}
-.prod-filters-title{color:#174f86}
+.prod-filters-box{background:#e3f0fc;border:1.5px solid #b8d2ea;border-radius:14px;padding:4px 10px 11px}
+.prod-filters-head{margin-bottom:4px;min-height:24px}
+.prod-filters-title{color:#174f86;font-size:12px;line-height:1}
+.prod-filters-head .filter-clear{width:24px;height:24px;border-radius:7px}
+.prod-filters-head .filter-clear svg{width:16px;height:16px}
 .sticky-filter-wrap .prod-filters-box{margin:0}
 .prod-filters-grid.is-single{grid-template-columns:1fr}
 .prod-filters-grid .store-filter-wrap{position:static;min-width:0}
-.prod-filters-grid .store-filter-trigger{width:100%;min-height:42px;height:42px;padding:7px 10px;gap:6px;font-size:13.5px;font-weight:650;border-radius:12px;border:1.5px solid #bfcdd6}
+.prod-filters-grid .store-filter-trigger{width:100%;min-height:38px;height:38px;padding:6px 10px;gap:6px;font-size:13.5px;font-weight:650;border-radius:11px;border:1.5px solid #bfcdd6;box-shadow:inset 0 1px 0 #fff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.09)}
 .prod-filters-grid .store-filter-trigger.has-filter,.list-filter-row .store-filter-trigger.has-filter{border-color:#174f86;background:linear-gradient(180deg,#ffffff 0%,#cde4fa 100%);color:#144678}
 .prod-filters-grid .store-filter-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prod-filters-grid .store-filter-menu{top:calc(100% + 6px);left:0;right:0;max-height:min(60dvh,480px);z-index:65;box-shadow:0 14px 32px rgba(16,48,80,.24)}
@@ -3117,7 +3120,7 @@ async function renderList(keepFilterOpen = false) {
   const isListModified = isSavedListModified(_cl, items, pMap, sMap);
   let html = `<div class="toolbar"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}</div><button class="header-icon" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.3" fill="#44546a"/><circle cx="12" cy="12" r="2.3" fill="#44546a"/><circle cx="12" cy="19" r="2.3" fill="#44546a"/></svg></button></div>
   ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : "nessuna lista salvata"}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div><div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi un articolo alla lista</span></button></div>
-  <div class="sticky-filter-wrap"><div class="prod-filters-box list-sticky-filter-box"><div class="list-filter-row">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "" })}<button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div></div></div>`;
+  <div class="sticky-filter-wrap"><div class="prod-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid is-single">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "" })}</div></div></div>`;
   if (!visible.length) html += `<div class="empty" style="margin-top:14px">${items.length ? "Nessun articolo per questo filtro." : "La lista \xE8 vuota.<br>Inizia aggiungendo un articolo."}</div>`;
   else {
     const storeTotals = new Map();
