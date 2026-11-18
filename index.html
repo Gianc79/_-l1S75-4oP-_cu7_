@@ -1028,6 +1028,7 @@ body.orientation-locked{overflow:hidden!important}
 .saved-lists-sheet .saved-title{min-height:22px}
 .saved-lists-sheet .row-edit-inline{width:24px;height:24px;flex:0 0 24px}
 .saved-lists-sheet .row-edit-inline svg{width:14px;height:14px}
+.label-hint{font-weight:400;font-size:12px;color:var(--muted);margin-left:3px}
 </style>
 </head>
 <body>
@@ -3596,7 +3597,7 @@ async function openProductForm(productId, returnPage = "products", returnCategor
   productReturnFn = returnFn;
   const selectedCategory = p?.categoryId || returnCategoryId || "";
   const storeIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v10h14V9M9 19v-6h6v6"/></svg>';
-  const body = `<div class="product-editor"><form id="productForm"><div class="product-main-card"><div class="field"><div class="label-row"><div class="label-title-group"><label for="prodName">Nome</label>${tipBtn("prodNameTip", "Suggerimento nome articolo")}</div><span class="req req-pill" id="reqName">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNameTip" hidden>Affinch\xE9 il confronto dei prezzi risulti attendibile, inserisci la struttura:<br><em>Nome &amp; Marca &amp; Quantit\xE0</em><br>(es. Olio EVO <em>Marca</em> 750 ml).</div><input id="prodName" type="text" maxlength="30" value="${esc(p?.name || "")}" required placeholder="Es. Mele"></div>
+  const body = `<div class="product-editor"><form id="productForm"><div class="product-main-card"><div class="field"><div class="label-row"><div class="label-title-group"><label for="prodName">Nome <span class="label-hint">(max 30 caratteri)</span></label>${tipBtn("prodNameTip", "Suggerimento nome articolo")}</div><span class="req req-pill" id="reqName">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNameTip" hidden>Affinch\xE9 il confronto dei prezzi risulti attendibile, inserisci la struttura:<br><em>Nome &amp; Marca &amp; Quantit\xE0</em><br>(es. Olio EVO <em>Marca</em> 750ml).</div><input id="prodName" type="text" maxlength="30" value="${esc(p?.name || "")}" required placeholder="Es. Mele"></div>
   <div class="field"><div class="label-row"><label for="prodCategory">Reparto</label><span class="req req-pill" id="reqCat">Obbligatorio</span></div>${customDropdown("prodCategory", selectedCategory, [{ id: "", name: "Seleziona reparto" }].concat(cats.map((c) => ({ id: c.id, name: c.name })), [{ id: "__new__", name: "\uFF0B Nuovo reparto" }]), false, true, true)}</div>
   <div class="field" style="margin-bottom:0"><div class="label-row"><div class="label-title-group"><label for="prodUnit">Unit\xE0 di misura</label>${tipBtn("prodUnitTip", "Suggerimento unit\xE0 di misura")}</div><span class="small muted">pz \u00B7 kg \u00B7 lt</span></div><div class="info-pop tip-pop" id="prodUnitTip" hidden>Se l'articolo viene venduto al kg o al lt ma CONFEZIONATO, selezionare "pz";<br>se l'articolo viene venduto al kg o al lt ma SFUSO, selezionare "kg" o "lt".</div>${customDropdown("prodUnit", p ? (p.unit === "l" ? "lt" : p.unit === "pz." ? "pz" : p.unit) : "pz", [{ id: "pz", name: "pz (pezzo o confezione)" }, { id: "kg", name: "kg (chilogrammo)" }, { id: "lt", name: "lt (litro)" }], false, true)}</div></div>
   <div class="product-stores-section"><div class="product-stores-head"><span class="product-stores-icon">${storeIcon}</span><div class="product-stores-text"><span class="product-stores-title">Supermercati e prezzi</span><span class="product-stores-desc">Attiva i supermercati e inserisci il prezzo per l'Unit\xE0 di misura selezionata.</span></div></div><div id="productStoreFields">${ss.map((s) => {
@@ -3696,7 +3697,7 @@ async function createCategoryInline(onCreated, onCancelled = () => openProductFo
     currentModalKeep = false;
     await onCancelled();
   };
-  modal("Nuovo reparto", '<div class="field"><label for="newCatName">Nome reparto</label><input id="newCatName" type="text" maxlength="20" placeholder="Es. ORTOFRUTTA" autocapitalize="characters"></div>', [
+  modal("Nuovo reparto", '<div class="field"><label for="newCatName">Nome reparto <span class="label-hint">(max 20 caratteri)</span></label><input id="newCatName" type="text" maxlength="20" placeholder="Es. ORTOFRUTTA" autocapitalize="characters"></div>', [
     { label: "Annulla", class: "btn-plain", action: cancel },
     { label: "Salva", class: "btn-primary", action: async () => {
       const name = $("#newCatName").value.trim().toLocaleUpperCase("it");
@@ -3903,7 +3904,7 @@ function openNewCategoryWindow(onClose) {
     input().focus();
     setStatus("Nuovo reparto aggiunto.", "info");
   };
-  modal("Nuovo reparto", '<div class="field" style="margin-bottom:28px"><div class="label-row"><label for="categoryName">Nome</label><span class="field-status" id="catNameStatus" aria-live="polite"></span></div><input id="categoryName" type="text" maxlength="20" placeholder="Es. SALUMI" autocomplete="off" autocapitalize="characters"></div>', [
+  modal("Nuovo reparto", '<div class="field" style="margin-bottom:28px"><div class="label-row"><label for="categoryName">Nome <span class="label-hint">(max 20 caratteri)</span></label><span class="field-status" id="catNameStatus" aria-live="polite"></span></div><input id="categoryName" type="text" maxlength="20" placeholder="Es. SALUMI" autocomplete="off" autocapitalize="characters"></div>', [
     { label: "Chiudi", class: "btn-plain", action: () => {
       closeModal(false);
       onClose();
@@ -3961,7 +3962,7 @@ async function openCategoryForm(id, keep = false) {
   if (!c) return;
   const all = (await allProductsSorted()).filter((p) => p.categoryId === id);
   const plus = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>';
-  const body = `<div class="field"><label for="categoryName">Nome</label><div class="name-box"><input id="categoryName" type="text" maxlength="28" value="${esc(c.name)}" placeholder="Es. SALUMI" autocomplete="off"><button type="button" class="name-no" id="categoryNameNo" aria-label="Ripristina il nome precedente" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="categoryNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><div class="field" style="margin-bottom:8px"><div class="label-row"><label>Articoli in questo reparto <span class="count" id="catMembersCount"></span></label><button type="button" class="mini-add" id="catAddProduct" aria-label="Aggiungi articolo" title="Aggiungi articolo">${plus}</button></div></div><div class="field"><input id="catMembersSearch" type="search" class="search-input" placeholder="Cerca articolo\u2026" autocomplete="off"></div><div id="catMembers"></div>`;
+  const body = `<div class="field"><label for="categoryName">Nome <span class="label-hint">(max 28 caratteri)</span></label><div class="name-box"><input id="categoryName" type="text" maxlength="28" value="${esc(c.name)}" placeholder="Es. SALUMI" autocomplete="off"><button type="button" class="name-no" id="categoryNameNo" aria-label="Ripristina il nome precedente" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="categoryNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><div class="field" style="margin-bottom:8px"><div class="label-row"><label>Articoli in questo reparto <span class="count" id="catMembersCount"></span></label><button type="button" class="mini-add" id="catAddProduct" aria-label="Aggiungi articolo" title="Aggiungi articolo">${plus}</button></div></div><div class="field"><input id="catMembersSearch" type="search" class="search-input" placeholder="Cerca articolo\u2026" autocomplete="off"></div><div id="catMembers"></div>`;
   modal("Dettagli reparto", body, [], { closeButton: true, backdropClose: false, alignTop: true, onClose: async () => {
     await renderCategories();
     window.scrollTo(0, catScrollY);
@@ -4063,7 +4064,7 @@ function openStoreForm() {
   };
   modal(
     "Nuovo supermercato",
-    `<div class="field" style="margin-bottom:28px"><div class="label-row"><label for="storeName">Nome</label><span class="field-status" id="storeNameStatus" aria-live="polite"></span></div><div class="name-box"><input id="storeName" type="text" maxlength="20" autocomplete="off" autocapitalize="characters"><button type="button" class="name-no" id="storeNameNew" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="storeNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div><div class="store-name-tip">In caso di pi\xF9 punti vendita appartenenti alla stessa catena, \xE8 consigliabile inserire anche la localit\xE0 (es. NOMECATENA LOCALITA').</div></div>`,
+    `<div class="field" style="margin-bottom:28px"><div class="label-row"><label for="storeName">Nome <span class="label-hint">(max 20 caratteri)</span></label><span class="field-status" id="storeNameStatus" aria-live="polite"></span></div><div class="name-box"><input id="storeName" type="text" maxlength="20" autocomplete="off" autocapitalize="characters"><button type="button" class="name-no" id="storeNameNew" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="storeNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div><div class="store-name-tip">In caso di pi\xF9 punti vendita appartenenti alla stessa catena, \xE8 consigliabile inserire anche la localit\xE0 (es. NOMECATENA LOCALITA').</div></div>`,
     [
       { label: "Annulla", class: "btn-plain", action: () => closeModal(false) },
       { label: "Configura", class: "btn-primary", action: async () => {
@@ -4661,7 +4662,7 @@ async function openManageCategories(storeId) {
   };
   const showManageModal = async (savedScroll = null) => {
     const st = await settings(), allStores = await allStoresSorted();
-    const body = `<div class="store-name-sticky"><div class="field" style="margin:0 0 6px"><label for="storeNameInput">Nome</label></div><div class="name-copy-row"><div class="field" style="flex:1;min-width:0;margin:0"><div class="name-box"><input id="storeNameInput" type="text" maxlength="28" value="${esc(s.name)}" autocomplete="off"><button type="button" class="name-no" id="storeNameNo" aria-label="Annulla modifica nome" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="storeNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><button type="button" class="btn btn-secondary copy-icon-btn store-color-icon-btn" id="storeColorBtn" aria-label="Personalizza colori supermercato" title="Colori supermercato">${colorSvg}</button></div></div>
+    const body = `<div class="store-name-sticky"><div class="field" style="margin:0 0 6px"><label for="storeNameInput">Nome <span class="label-hint">(max 28 caratteri)</span></label></div><div class="name-copy-row"><div class="field" style="flex:1;min-width:0;margin:0"><div class="name-box"><input id="storeNameInput" type="text" maxlength="28" value="${esc(s.name)}" autocomplete="off"><button type="button" class="name-no" id="storeNameNo" aria-label="Annulla modifica nome" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="storeNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><button type="button" class="btn btn-secondary copy-icon-btn store-color-icon-btn" id="storeColorBtn" aria-label="Personalizza colori supermercato" title="Colori supermercato">${colorSvg}</button></div></div>
     <div id="manageCategoryContent"></div>`;
     modal("Configurazione supermercato", body, [], { closeButton: true, backdropClose: false, alignTop: true, onClose: () => {
       if (page === "stores") renderStores();
