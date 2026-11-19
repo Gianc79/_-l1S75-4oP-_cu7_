@@ -3,7 +3,7 @@
   "short_name": "SpesaSuMisura",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#2d5e8d",
   "theme_color": "#ffd447",
