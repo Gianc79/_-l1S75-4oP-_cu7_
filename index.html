@@ -1070,6 +1070,9 @@ body.orientation-locked{overflow:hidden!important}
 .category-heading.store-list-heading{position:sticky;top:calc(var(--header-h,73px) + 52px);z-index:7;background:var(--bg);margin:0 -2px 2px;padding:6px 4px 5px}
 @media(max-width:619px){.sticky-action-wrap{top:calc(var(--header-h,62px) - 1px)}.sticky-filter-wrap{top:calc(var(--header-h,62px) + 52px)}.products-search-sticky{top:calc(var(--header-h,62px) + 55px)!important}.category-heading.store-list-heading{top:calc(var(--header-h,62px) + 52px)}}
 </style>
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="theme-color" content="#ffd447" />
 </head>
 <body>
 <header class="app-header">
@@ -5480,6 +5483,13 @@ function initApp() {
 setupPortraitLock();
 init();
 
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>
