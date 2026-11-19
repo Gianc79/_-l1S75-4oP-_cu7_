@@ -2721,7 +2721,16 @@ function updateFloatingAddButton() {
   const wrap = $("#floatingAddWrap");
   if (wrap) wrap.classList.add("hidden");
 }
+function isInstalledPwa() {
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches ||
+    window.matchMedia?.("(display-mode: fullscreen)")?.matches ||
+    window.matchMedia?.("(display-mode: minimal-ui)")?.matches ||
+    window.navigator.standalone === true
+  );
+}
 function handleAppBack() {
+  if (isInstalledPwa()) return;
   history.pushState({ spesaSuMisuraBackGuard: true }, "");
   window.addEventListener("popstate", async () => {
     if ($("#modalRoot .modal")) closeModal();
@@ -2766,6 +2775,7 @@ async function confirmDialog(title, message, confirmText = "Elimina", opts = {})
       overlay.querySelector('[data-overlay-kind="cancel"]')?.addEventListener("click", dismiss);
       overlay.querySelector('[data-overlay-kind="confirm"]')?.addEventListener("click", () => {
         cleanup();
+        if (typeof opts.onConfirm === "function") opts.onConfirm();
         if (!settled) {
           settled = true;
           resolve(true);
@@ -2784,6 +2794,7 @@ async function confirmDialog(title, message, confirmText = "Elimina", opts = {})
       } else {
         closeModal(false);
       }
+      if (typeof opts.onConfirm === "function") opts.onConfirm();
       if (!settled) {
         settled = true;
         resolve(true);
@@ -5339,29 +5350,70 @@ async function init() {
   }));
   $("#saveBackupBtn").addEventListener("click", exportBackup);
   $("#infoHeaderBtn").addEventListener("click", () => setPage("other"));
-  $("#exitAppBtn")?.addEventListener("click", async () => {
-    const yes = await confirmDialog("", "Vuoi uscire da SpesaSuMisura?", "Esci", { cancelFirst: true, closeButton: false, backdropClose: false, center: true });
-    if (!yes) return;
-    try { navigator.app?.exitApp?.(); } catch (_) {}
-    try { window.close(); } catch (_) {}
-    try { window.open("", "_self")?.close?.(); } catch (_) {}
-    setTimeout(() => {
-      if (!window.closed) {
-        const ov = $("#appExitOverlay");
-        if (ov) {
-          ov.classList.add("active");
-          ov.setAttribute("aria-hidden", "false");
-        }
-      }
-    }, 150);
-  });
-  $("#reopenAppBtn")?.addEventListener("click", () => {
+  let exitFallbackTimer = null;
+  let exitOverlayHiddenWhileBg = false;
+  const hideExitOverlay = () => {
     const ov = $("#appExitOverlay");
     if (ov) {
       ov.classList.remove("active");
       ov.setAttribute("aria-hidden", "true");
     }
+    exitOverlayHiddenWhileBg = false;
+  };
+  const attemptExitApp = () => {
+    const inPwa = isInstalledPwa();
+    clearTimeout(exitFallbackTimer);
+    let closedOrHidden = false;
+    const cancelFallback = () => {
+      closedOrHidden = true;
+      clearTimeout(exitFallbackTimer);
+      window.removeEventListener("pagehide", cancelFallback);
+      document.removeEventListener("visibilitychange", onExitVis);
+    };
+    const onExitVis = () => {
+      if (document.hidden) cancelFallback();
+    };
+    window.addEventListener("pagehide", cancelFallback, { once: true });
+    document.addEventListener("visibilitychange", onExitVis);
+    try { navigator.app?.exitApp?.(); } catch (_) {}
+    try { window.Capacitor?.Plugins?.App?.exitApp?.(); } catch (_) {}
+    try { window.close(); } catch (_) {}
+    if (!inPwa) {
+      try { window.open("", "_self")?.close?.(); } catch (_) {}
+    }
+    exitFallbackTimer = setTimeout(() => {
+      window.removeEventListener("pagehide", cancelFallback);
+      document.removeEventListener("visibilitychange", onExitVis);
+      if (closedOrHidden || window.closed || document.hidden) return;
+      const ov = $("#appExitOverlay");
+      if (ov) {
+        const desc = ov.querySelector(".orientation-lock-desc");
+        if (desc) {
+          desc.textContent = inPwa
+            ? "Il sistema operativo del telefono non permette la chiusura automatica delle app web. Scorri dal basso o usa il tasto Home per tornare alla schermata del telefono."
+            : "Hai chiuso SpesaSuMisura. Ora puoi chiudere questa scheda del browser.";
+        }
+        ov.classList.add("active");
+        ov.setAttribute("aria-hidden", "false");
+      }
+    }, 350);
+  };
+  document.addEventListener("visibilitychange", () => {
+    const ov = $("#appExitOverlay");
+    if (!ov || !ov.classList.contains("active")) return;
+    if (document.hidden) exitOverlayHiddenWhileBg = true;
+    else if (exitOverlayHiddenWhileBg) hideExitOverlay();
   });
+  $("#exitAppBtn")?.addEventListener("click", async () => {
+    await confirmDialog("", "Vuoi uscire da SpesaSuMisura?", "Esci", {
+      cancelFirst: true,
+      closeButton: false,
+      backdropClose: false,
+      center: true,
+      onConfirm: attemptExitApp
+    });
+  });
+  $("#reopenAppBtn")?.addEventListener("click", hideExitOverlay);
   bindToastSwipe();
   function scrollDropdownToSelected(menu) {
     const go = () => {
