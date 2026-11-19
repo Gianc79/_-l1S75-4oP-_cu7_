@@ -1001,10 +1001,15 @@ body.orientation-locked{overflow:hidden!important}
 .saved-lists-sheet .row-sub{margin-top:0;font-size:12.5px;line-height:1.25}
 .saved-load-clear-promos{margin-top:0;background:#f5f9fc;border:1.5px solid #d4e3f0;border-radius:13px;padding:10px 12px;font-size:13.5px;font-weight:650;color:var(--text);cursor:pointer;min-height:46px}
 /* v. 1.54 */
-.modal-backdrop.modal-center{align-items:center;padding:18px}
-.modal-backdrop.modal-center .modal{border-radius:24px;max-width:420px;min-height:198px;display:flex;flex-direction:column;justify-content:space-between;padding:30px 18px 24px}
-.modal-backdrop.modal-center .modal p{margin:4px 0 0;font-size:17px;font-weight:700;text-align:center;color:var(--text);line-height:1.4}
-.modal-backdrop.modal-center .modal .modal-actions{margin-top:52px}
+.modal-backdrop.modal-center{align-items:center;padding:22px;background:rgba(15,23,42,.46);backdrop-filter:blur(6px)}
+.modal-backdrop.modal-center .modal{border-radius:28px;max-width:360px;padding:32px 24px 26px;box-shadow:0 20px 50px rgba(15,23,42,.22)}
+.modal-backdrop.modal-center .modal p{margin:2px 0 4px;font-size:17px;font-weight:700;text-align:center;color:var(--text);line-height:1.4}
+.exit-confirm-body{display:flex;flex-direction:column;align-items:center;text-align:center}
+.exit-confirm-badge{width:68px;height:68px;border-radius:20px;background:linear-gradient(180deg,#ffe4e6 0%,#fecdd3 100%);color:#dc2626;display:grid;place-items:center;margin:0 auto 20px;box-shadow:0 12px 24px rgba(225,29,72,.16)}
+.exit-confirm-badge svg{width:30px;height:30px;display:block}
+.modal-backdrop.modal-center .modal .exit-confirm-title{margin:0 0 10px;font-size:24px;font-weight:800;color:#1e293b;letter-spacing:-.3px;line-height:1.2}
+.modal-backdrop.modal-center .modal .exit-confirm-desc{margin:0;font-size:15.5px;font-weight:500;color:#64748b;line-height:1.4}
+.modal-backdrop.modal-center .modal .modal-actions{margin-top:28px;gap:12px}
 .assign-product-card{align-items:flex-start}
 .assign-product-name{flex:1;min-width:0}
 .assign-product-unit{flex:0 0 auto;font-size:15.5px;font-weight:400;line-height:1.25;padding-top:0;color:var(--muted);white-space:nowrap;text-align:right}
@@ -2805,7 +2810,7 @@ async function confirmDialog(title, message, confirmText = "Elimina", opts = {})
       settleFalse();
       closeModal();
     } };
-    modal(title, `<p>${message}</p>`, opts.cancelFirst ? [cancelBtn, confirmBtn] : [confirmBtn, cancelBtn], { closeButton: !!opts.closeButton, backdropClose: opts.backdropClose, keepModalOnClose: !!opts.keepModalOnClose, center: !!opts.center, onClose: onDismiss });
+    modal(title, opts.rawBody ? message : `<p>${message}</p>`, opts.cancelFirst ? [cancelBtn, confirmBtn] : [confirmBtn, cancelBtn], { closeButton: !!opts.closeButton, backdropClose: opts.backdropClose, keepModalOnClose: !!opts.keepModalOnClose, center: !!opts.center, onClose: onDismiss });
   });
 }
 function goPage(p, opts = {}) {
@@ -5406,11 +5411,13 @@ async function init() {
     else if (exitOverlayHiddenWhileBg) hideExitOverlay();
   });
   $("#exitAppBtn")?.addEventListener("click", async () => {
-    await confirmDialog("", "Vuoi uscire da SpesaSuMisura?", "Esci", {
+    const exitBody = `<div class="exit-confirm-body"><div class="exit-confirm-badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div><h2 class="exit-confirm-title">Uscire dall'app?</h2><p class="exit-confirm-desc">Vuoi chiudere SpesaSuMisura?</p></div>`;
+    await confirmDialog("", exitBody, "Esci", {
       cancelFirst: true,
       closeButton: false,
       backdropClose: false,
       center: true,
+      rawBody: true,
       onConfirm: attemptExitApp
     });
   });
