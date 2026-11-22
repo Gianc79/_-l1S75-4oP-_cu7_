@@ -1289,14 +1289,14 @@ input.caret-hidden{caret-color:transparent!important}
 .new-prod-add-list-box .new-prod-add-list-opt{min-height:24px;padding:0;border:0;border-radius:0;background:transparent;font-size:13.5px;gap:8px}
 .new-prod-add-list-box .new-prod-add-list-opt input[type=checkbox]{width:20px;height:20px;flex:0 0 20px}
 .new-prod-qty-row{display:flex;align-items:center;justify-content:space-between;gap:6px;padding-top:5px;border-top:1px dashed #c7d9ea;transition:opacity .15s ease}
-.new-prod-qty-row.is-inactive{opacity:.52}
-.new-prod-qty-row label{font-size:12.5px;font-weight:700;color:#123e6d;margin:0;white-space:nowrap;line-height:1.15}
+.new-prod-qty-row.is-inactive{opacity:.52;pointer-events:none;user-select:none;-webkit-user-select:none}
+.new-prod-qty-row label{font-size:12.5px;font-weight:700;color:#123e6d;margin:0;white-space:nowrap;line-height:1.2}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl{gap:5px;flex:0 1 auto;min-width:0}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl>button{width:34px;height:34px;font-size:18px;border-radius:9px}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl>button:disabled{opacity:.55;cursor:not-allowed;box-shadow:none;transform:none}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box{width:136px;position:relative}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box input#addNewProdQty{width:100%;min-height:34px;height:34px;padding:3px 8px;font-size:15px;font-weight:700;text-align:center}
-.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box input#addNewProdQty:disabled{background:#eef2f0;background-image:none;border-color:#d3ddd8;color:var(--muted);box-shadow:none;cursor:not-allowed}
+.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box input#addNewProdQty:disabled{background:#eef2f0;background-image:none;border-color:#d3ddd8;color:var(--muted);box-shadow:none;cursor:not-allowed;pointer-events:none;caret-color:transparent!important;user-select:none;-webkit-user-select:none}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box.editing input#addNewProdQty{text-align:left!important;padding-left:8px!important;padding-right:60px!important}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box:not(.editing) .name-no,.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box:not(.editing) .name-ok{display:none!important}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box button.name-no,.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box button.name-ok{position:absolute;top:50%;transform:translateY(-50%);width:26px;height:26px;min-height:0;border:0!important;border-radius:50%;background:transparent!important;box-shadow:none!important;padding:0;z-index:2}
@@ -4481,7 +4481,7 @@ async function openProductForm(productId, returnPage = "products", returnCategor
     }
   } }, { label: productId ? "Salva" : "Aggiungi", class: "btn-primary", action: async () => saveProductForm(productId, returnPage, returnCategoryId) }];
   const onClose = returnPage === "editor" ? () => returnFn() : (returnPage === "list" || returnPage === "addItem") ? () => openAddItem() : returnPage === "categoryDetail" ? () => openCategoryForm(returnCategoryId, true) : returnPage === "categoryPicker" ? () => openCategoryProductPicker(returnCategoryId) : returnPage === "products" && !productId ? () => renderProducts() : null;
-  const stickyFooterHtml = !productId ? `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-qty-row is-inactive" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0 [<span class="new-prod-qty-unit">${esc(assignUnit(initialUnit))}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialUnit))}" disabled><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div></div>` : "";
+  const stickyFooterHtml = !productId ? `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-qty-row is-inactive" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0<br>[<span class="new-prod-qty-unit">${esc(assignUnit(initialUnit))}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialUnit))}" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div></div>` : "";
   modal(productId ? "Dettagli articolo" : "Nuovo articolo", body, buttons, { closeButton: true, backdropClose: false, onClose, alignTop: true, headerThemed: true, stickyFooter: true, stickyFooterHtml, keepModalOnClose: returnPage === "list" || returnPage === "addItem" || returnPage === "editor" || returnPage === "categoryDetail" || returnPage === "categoryPicker" });
   $("#productForm").addEventListener("submit", (e) => e.preventDefault());
   wireCustomDropdown("prodUnit");
@@ -4500,6 +4500,9 @@ async function openProductForm(productId, returnPage = "products", returnCategor
     const active = !!addListCb.checked;
     addQtyRow.classList.toggle("is-inactive", !active);
     addQtyInp.disabled = !active;
+    addQtyInp.readOnly = !active;
+    addQtyInp.tabIndex = active ? 0 : -1;
+    addQtyInp.setAttribute("aria-disabled", active ? "false" : "true");
     if (addQtyMinus) addQtyMinus.disabled = !active;
     if (addQtyPlus) addQtyPlus.disabled = !active;
     if (!active) {
@@ -4519,7 +4522,11 @@ async function openProductForm(productId, returnPage = "products", returnCategor
     });
     selectAllOnFocus(addQtyInp);
     const startAddQtyEdit = () => {
-      if (addQtyInp.disabled || !addQtyBox || addQtyBox.classList.contains("editing")) return;
+      if (!addListCb.checked || addQtyInp.disabled) {
+        addQtyInp.blur();
+        return;
+      }
+      if (!addQtyBox || addQtyBox.classList.contains("editing")) return;
       savedAddQty = addQtyInp.value;
       addQtyBox.classList.add("editing");
     };
