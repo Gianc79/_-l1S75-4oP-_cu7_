@@ -1311,8 +1311,16 @@ input.caret-hidden{caret-color:transparent!important}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box button.name-no:active,.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box button.name-ok:active{transform:translateY(-50%);box-shadow:none!important}
 .new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box button.name-no svg,.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box button.name-ok svg{width:20px;height:20px}
 @media(max-width:355px){.new-prod-qty-row .qty-row.new-prod-qty-ctrl .name-box{width:118px}}
-/* Finestre Carica lista e Salva con nome: badge contatore uniforme alle altre schermate */
+/* Finestre Carica lista e Salva con nome: badge contatore uniforme alle altre schermate, tema azzurrino e badge FULL */
 .saved-list-head .title-count-badge{min-width:28px;height:28px;padding:0 7px;font-size:13.5px;font-weight:850}
+.saved-full-badge{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 8px;border-radius:7px;background:#feeceb;border:1.5px solid #e59994;color:#b42318;font-size:11.5px;font-weight:850;letter-spacing:.5px;line-height:1;flex:0 0 auto}
+.modal.modal-themed:has(.saved-lists-sheet){--m-pt:0px;--m-px:16px;--m-pb:calc(18px + env(safe-area-inset-bottom));padding:0 16px calc(18px + env(safe-area-inset-bottom));background:var(--modal-themed-bg)}
+.modal.modal-themed:has(.saved-lists-sheet)>.modal-header{position:sticky;top:0;z-index:12;margin:0 -16px 12px;padding:14px 16px 13px;background:var(--modal-header-grad);border-bottom:1.5px solid var(--modal-header-border);border-radius:24px 24px 0 0;align-items:center}
+.modal.modal-themed:has(.saved-lists-sheet)>.modal-header .modal-close{align-self:center;margin-top:0}
+.modal.modal-themed:has(.saved-lists-sheet) .saved-name-card,.modal.modal-themed:has(.saved-lists-sheet) .saved-load-clear-promos{background:#ffffff;border-color:#c2d6ea}
+.modal.modal-themed:has(.saved-lists-sheet) .saved-list-section{background:#f6fafe;border-color:#c2d6ea}
+/* Finestra Uscire dall'app?: sfondo azzurrino */
+.modal-backdrop.modal-center .modal:has(.exit-confirm-body){background:var(--modal-themed-bg);border:1.5px solid var(--modal-header-border)}
 </style>
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
@@ -3196,7 +3204,7 @@ async function openSavedListsWindow(mode) {
   }).join("") || '<div class="empty">Nessuna lista salvata.</div>';
   const limitReached = lists.length >= MAX_SAVED_LISTS;
   const listIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/></svg>';
-  const body = `<div class="saved-lists-sheet">${save ? `<div class="saved-name-card"><div class="field"><label for="savedListName">Nome della lista</label><div class="name-box"><input id="savedListName" type="text" maxlength="20" placeholder="Es. Spesa settimanale" autocomplete="off"><button type="button" class="name-no" id="savedListNameNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="savedListNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div>${limitReached ? `<div class="inline-note">Limite di ${MAX_SAVED_LISTS} liste salvate raggiunto: puoi sovrascriverne una esistente toccandola o eliminarne una.</div>` : ""}</div>` : ""}<div class="saved-list-section"><div class="saved-list-head"><div class="saved-list-head-left"><span class="saved-list-icon">${listIcon}</span><span class="saved-list-title">Elenco liste</span><span class="title-count-badge">${lists.length}</span></div><button type="button" class="header-icon trash-mini" id="delAllSavedBtn" ${lists.length ? "" : "disabled"} aria-label="Elimina tutte le liste salvate" title="Elimina tutte le liste salvate">${TRASH_OFFICE}</button></div><div id="savedListsContainer">${rows}</div></div>${!save && lists.length ? `<label class="check-line saved-load-clear-promos"><input type="checkbox" id="clearPromosOnLoad"> <span>Rimuovi eventuali prezzi SCONTATI</span></label>` : ""}</div>`;
+  const body = `<div class="saved-lists-sheet">${save ? `<div class="saved-name-card"><div class="field"><label for="savedListName">Nome della lista</label><div class="name-box"><input id="savedListName" type="text" maxlength="20" placeholder="Es. Spesa settimanale" autocomplete="off"><button type="button" class="name-no" id="savedListNameNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="savedListNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div>${limitReached ? `<div class="inline-note">Limite di ${MAX_SAVED_LISTS} liste salvate raggiunto: puoi sovrascriverne una esistente toccandola o eliminarne una.</div>` : ""}</div>` : ""}<div class="saved-list-section"><div class="saved-list-head"><div class="saved-list-head-left"><span class="saved-list-icon">${listIcon}</span><span class="saved-list-title">Elenco liste</span><span class="title-count-badge">${lists.length}</span>${limitReached ? '<span class="saved-full-badge" aria-label="Elenco liste pieno">FULL</span>' : ""}</div><button type="button" class="header-icon trash-mini" id="delAllSavedBtn" ${lists.length ? "" : "disabled"} aria-label="Elimina tutte le liste salvate" title="Elimina tutte le liste salvate">${TRASH_OFFICE}</button></div><div id="savedListsContainer">${rows}</div></div>${!save && lists.length ? `<label class="check-line saved-load-clear-promos"><input type="checkbox" id="clearPromosOnLoad"> <span>Rimuovi eventuali prezzi SCONTATI</span></label>` : ""}</div>`;
   let selId = null;
   const doSave = async () => {
     const name = $("#savedListName").value.trim();
@@ -3215,7 +3223,12 @@ async function openSavedListsWindow(mode) {
       await saveListAs(ex.name, ex);
     } else {
       if (lists.length >= MAX_SAVED_LISTS) {
-        showToast(`Puoi salvare al massimo ${MAX_SAVED_LISTS} liste. Elimina o sovrascrivi una lista esistente.`);
+        await confirmDialog(
+          "Elenco liste pieno",
+          `L\u2019Elenco liste \xE8 gi\xE0 pieno (${MAX_SAVED_LISTS} liste salvate) e non \xE8 possibile salvare altre liste.<br><br>Puoi comunque sovrascrivere una lista esistente selezionandola dall\u2019elenco, oppure eliminarne una.`,
+          "OK",
+          { overlay: true, singleButton: true, confirmClass: "btn-primary", themed: true, backdropClose: false }
+        );
         return;
       }
       await saveListAs(name, null);
@@ -3231,7 +3244,7 @@ async function openSavedListsWindow(mode) {
     closeModal(false);
     await loadSavedList(l, { clearPromos });
   };
-  modal(save ? "Salva con nome" : "Carica lista", body, save ? [{ label: "Chiudi", class: "btn-plain", action: () => { currentModal = null; currentModalKeep = false; openListMenu(); } }, { label: "Salva", class: "btn-primary", action: doSave }] : [{ label: "Chiudi", class: "btn-plain", action: () => { currentModal = null; currentModalKeep = false; openListMenu(); } }, { label: "Carica", class: "btn-primary", action: doLoad }], { closeButton: true, backdropClose: false, alignTop: true, keepModalOnClose: true, onClose: () => openListMenu() });
+  modal(save ? "Salva con nome" : "Carica lista", body, save ? [{ label: "Chiudi", class: "btn-plain", action: () => { currentModal = null; currentModalKeep = false; openListMenu(); } }, { label: "Salva", class: "btn-primary", action: doSave }] : [{ label: "Chiudi", class: "btn-plain", action: () => { currentModal = null; currentModalKeep = false; openListMenu(); } }, { label: "Carica", class: "btn-primary", action: doLoad }], { closeButton: true, backdropClose: false, alignTop: true, keepModalOnClose: true, themed: true, onClose: () => openListMenu() });
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
@@ -3402,7 +3415,7 @@ function openListMenu() {
     ${card("reset", "Inizializza Spesa", "Deflagga tutti gli articoli della spesa corrente.")}
     ${card("empty", "Svuota Lista Spesa", "Rimuove tutti gli articoli della spesa corrente.", true)}
   </div>`;
-  modal("Lista della spesa", body, [], { closeButton: true, alignTop: true, backdropClose: false });
+  modal("Lista della spesa", body, [], { closeButton: true, alignTop: true, backdropClose: false, themed: true });
   $("#modalRoot").querySelectorAll("[data-list-action]").forEach((btn) => btn.addEventListener("click", async () => {
     const m = btn.dataset.listAction;
     if (m === "save") {
@@ -3537,11 +3550,11 @@ async function confirmDialog(title, message, confirmText = "Elimina", opts = {})
     if (opts.overlay) {
       const root = $("#modalRoot");
       const closeButton = opts.closeButton ? `<button class="modal-close" type="button" aria-label="Chiudi" title="Chiudi">\xD7</button>` : "";
-      const btns = opts.cancelFirst ? [{ label: "Annulla", class: "btn-plain", kind: "cancel" }, { label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }] : [{ label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }, { label: "Annulla", class: "btn-plain", kind: "cancel" }];
+      const btns = opts.singleButton ? [{ label: confirmText, class: opts.confirmClass || "btn-primary", kind: "confirm" }] : (opts.cancelFirst ? [{ label: "Annulla", class: "btn-plain", kind: "cancel" }, { label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }] : [{ label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }, { label: "Annulla", class: "btn-plain", kind: "cancel" }]);
       const overlay = document.createElement("div");
       overlay.className = "modal-backdrop modal-overlay modal-opening";
       overlay.id = "confirmOverlayBackdrop";
-      overlay.innerHTML = `<section class="modal modal-enter" role="dialog" aria-modal="true" aria-label="${esc(title || "Conferma")}" tabindex="-1"><div class="modal-header"><h2>${esc(title)}</h2>${closeButton}</div><p>${message}</p><div class="modal-actions">${btns.map((b) => `<button type="button" class="btn ${b.class}" data-overlay-kind="${b.kind}">${esc(b.label)}</button>`).join("")}</div></section>`;
+      overlay.innerHTML = `<section class="modal${opts.themed ? " modal-themed" : ""} modal-enter" role="dialog" aria-modal="true" aria-label="${esc(title || "Conferma")}" tabindex="-1"><div class="modal-header"><h2>${esc(title)}</h2>${closeButton}</div><p>${message}</p><div class="modal-actions">${btns.map((b) => `<button type="button" class="btn ${b.class}" data-overlay-kind="${b.kind}">${esc(b.label)}</button>`).join("")}</div></section>`;
       const cleanup = () => {
         if (activeConfirmOverlayDismiss === dismiss) activeConfirmOverlayDismiss = null;
         const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
