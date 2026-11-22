@@ -1275,7 +1275,11 @@ body:has(#listFooter:not(.hidden)):not(:has(#modalRoot .modal-backdrop:not(.moda
 /* Finestra Modifica assegnazioni: etichetta Quantità su 2 righe + scorrimento sopra tastiera garantito */
 .assign-qty-row label{line-height:1.22}
 .modal-backdrop.keyboard-open .modal:not(.modal-has-sticky-footer){max-height:calc(var(--vv-h,100dvh) - 24px - env(safe-area-inset-top))!important}
-.modal-backdrop.keyboard-open .modal.modal-has-sticky-footer{height:min(680px,calc(var(--vv-h,100dvh) - 24px - env(safe-area-inset-top)))!important;max-height:calc(var(--vv-h,100dvh) - 24px - env(safe-area-inset-top))!important}
+.modal-backdrop.modal-top:has(.modal-has-sticky-footer){overflow:hidden}
+.modal-backdrop.modal-top.keyboard-open:has(.modal-has-sticky-footer){top:var(--vv-top,0px);height:var(--vv-h,100dvh);bottom:auto;padding-bottom:8px;overflow:hidden}
+.modal-backdrop.modal-top.keyboard-open.sticky-footer-kb:has(.modal-has-sticky-footer){align-items:flex-end}
+.modal-backdrop.keyboard-open .modal.modal-has-sticky-footer{height:min(680px,calc(var(--vv-base-h,100dvh) - 96px - env(safe-area-inset-top) - env(safe-area-inset-bottom)),calc(var(--vv-h,100dvh) - 22px - env(safe-area-inset-top)))!important;max-height:calc(var(--vv-h,100dvh) - 22px - env(safe-area-inset-top))!important}
+.modal-backdrop.keyboard-open .modal-sticky-footer:has(.new-prod-add-list-box){padding-bottom:10px}
 .modal-backdrop.keyboard-open .modal.modal-has-sticky-footer .modal-scroll-body{padding-bottom:96px}
 .modal-backdrop.keyboard-open .modal:has(.assign-editor)::after,.modal-backdrop.keyboard-open .modal:has(.color-picker-modal)::after{content:"";display:block;flex:0 0 auto;height:max(210px,36dvh)}
 .modal-backdrop.keyboard-open .modal.modal-themed:has(.color-picker-modal){overflow-y:auto}
@@ -2132,19 +2136,39 @@ function modal(title, body, buttons = [], opts = {}) {
   let activeInput = null;
   let blurCheckTimer = null;
   let vvRaf = 0;
+  let baseVvH = Math.round(Math.max(window.innerHeight, window.visualViewport ? window.visualViewport.height : 0));
   const focusTimers = [];
   const clearFocusTimers = () => {
     while (focusTimers.length) clearTimeout(focusTimers.pop());
   };
   const syncViewportHeight = () => {
-    const vvH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    document.documentElement.style.setProperty("--vv-h", `${Math.round(vvH)}px`);
+    const vv = window.visualViewport;
+    const vvH = vv ? vv.height : window.innerHeight;
+    const vvTop = vv ? vv.offsetTop : 0;
+    const roundedH = Math.round(vvH);
+    const roundedTop = Math.max(0, Math.round(vvTop));
+    if (roundedH > baseVvH) baseVvH = roundedH;
+    document.documentElement.style.setProperty("--vv-base-h", `${baseVvH}px`);
+    document.documentElement.style.setProperty("--vv-h", `${roundedH}px`);
+    document.documentElement.style.setProperty("--vv-top", `${roundedTop}px`);
+    if (modalEl.classList.contains("modal-has-sticky-footer")) {
+      const kbVisible = (baseVvH - roundedH) > 80;
+      const inStickyFooter = !!(activeInput && document.activeElement === activeInput && activeInput.closest(".modal-sticky-footer"));
+      backdrop.classList.toggle("sticky-footer-kb", kbVisible && inStickyFooter);
+      if (backdrop.classList.contains("keyboard-open") && backdrop.scrollTop !== 0) {
+        backdrop.scrollTop = 0;
+      }
+    }
   };
   const ensureInputVisible = (el) => {
     if (!el || !$("#modalRoot .modal") || !backdrop.contains(el)) return;
     if (document.activeElement !== el) return;
     syncViewportHeight();
     backdrop.classList.add("keyboard-open");
+    if (el.closest(".modal-sticky-footer")) {
+      backdrop.scrollTop = 0;
+      return;
+    }
     const vv = window.visualViewport;
     const vvH = vv ? vv.height : window.innerHeight;
     const vvTop = vv ? vv.offsetTop : 0;
@@ -2164,6 +2188,7 @@ function modal(title, body, buttons = [], opts = {}) {
     }
   };
   const onVvResize = () => {
+    syncViewportHeight();
     if (vvRaf) cancelAnimationFrame(vvRaf);
     vvRaf = requestAnimationFrame(() => {
       vvRaf = 0;
@@ -2183,11 +2208,13 @@ function modal(title, body, buttons = [], opts = {}) {
       if (vvRaf) cancelAnimationFrame(vvRaf);
       window.visualViewport?.removeEventListener("resize", onVvResize);
       window.visualViewport?.removeEventListener("scroll", onVvResize);
+      document.documentElement.style.setProperty("--vv-top", "0px");
     };
   } else {
     activeModalViewportCleanup = () => {
       clearTimeout(blurCheckTimer);
       clearFocusTimers();
+      document.documentElement.style.setProperty("--vv-top", "0px");
     };
   }
   const inputs = backdrop.querySelectorAll("input,textarea,select");
@@ -2197,8 +2224,8 @@ function modal(title, body, buttons = [], opts = {}) {
       clearTimeout(blurCheckTimer);
       clearFocusTimers();
       activeInput = el;
-      syncViewportHeight();
       backdrop.classList.add("keyboard-open");
+      syncViewportHeight();
       focusTimers.push(setTimeout(() => ensureInputVisible(el), 120));
       focusTimers.push(setTimeout(() => ensureInputVisible(el), 300));
       focusTimers.push(setTimeout(() => ensureInputVisible(el), 520));
@@ -2210,7 +2237,7 @@ function modal(title, body, buttons = [], opts = {}) {
         const ae = document.activeElement;
         if (!ae || !backdrop.contains(ae) || !ae.matches("input:not([type=checkbox]):not([type=radio]):not([type=hidden]),textarea,select")) {
           activeInput = null;
-          backdrop.classList.remove("keyboard-open");
+          backdrop.classList.remove("keyboard-open", "sticky-footer-kb");
         }
       }, 120);
     });
@@ -2219,7 +2246,7 @@ function modal(title, body, buttons = [], opts = {}) {
     if (!e.target.closest("input,textarea,select")) {
       const ae = document.activeElement;
       if (!ae || !backdrop.contains(ae) || !ae.matches("input:not([type=checkbox]):not([type=radio]):not([type=hidden]),textarea,select")) {
-        backdrop.classList.remove("keyboard-open");
+        backdrop.classList.remove("keyboard-open", "sticky-footer-kb");
       }
     }
     if (!e.target.closest(".custom-dropdown")) {
