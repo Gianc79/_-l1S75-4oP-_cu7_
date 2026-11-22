@@ -1267,8 +1267,8 @@ button,.btn,.modal-close,.scroll-top-btn,.nav-btn,.header-icon,.filter-clear,inp
 .list-row.shopping-list-row.checked .item-check input:checked::after{border-color:#ffffff;filter:none}
 /* v. 1.60 */
 /* Generale 2: transizione armoniosa e fluida all'apertura/chiusura tastiera */
-.modal{transition:max-height .28s cubic-bezier(.22,1,.36,1),min-height .28s cubic-bezier(.22,1,.36,1),height .28s cubic-bezier(.22,1,.36,1)}
-.modal-backdrop.vv-animating .modal{transition:none!important}
+.modal{transition:max-height .44s cubic-bezier(.25,.8,.25,1),min-height .44s cubic-bezier(.25,.8,.25,1),height .44s cubic-bezier(.25,.8,.25,1)}
+.modal-backdrop.vv-animating .modal{transition-duration:.18s!important;transition-timing-function:ease-out!important}
 @media(prefers-reduced-motion:reduce){.modal{transition:none!important}}
 body:has(#listFooter:not(.hidden)):not(:has(#modalRoot .modal-backdrop:not(.modal-closing) .modal)) .toast{bottom:calc(150px + env(safe-area-inset-bottom))!important}
 body:has(#listFooter:not(.hidden)):not(:has(#modalRoot .modal-backdrop:not(.modal-closing) .modal)) .toast.with-undo{bottom:calc(150px + env(safe-area-inset-bottom))!important}
@@ -2170,14 +2170,15 @@ function modal(title, body, buttons = [], opts = {}) {
     const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
     const clamped = Math.max(0, Math.min(maxTop, Math.round(targetTop)));
     const cur = el.scrollTop;
-    const duration = isReducedMotion() ? 0 : (sOpts.duration ?? 280);
+    const duration = isReducedMotion() ? 0 : (sOpts.duration ?? 440);
     if (duration <= 0 || Math.abs(clamped - cur) < 1.5) {
       cancelScrollAnim();
       if (Math.abs(clamped - cur) >= 0.5) el.scrollTop = clamped;
       if (sOpts.onDone) sOpts.onDone();
       return;
     }
-    if (scrollAnim && scrollAnim.el === el && Math.abs(scrollAnim.to - clamped) < 2) {
+    const retargeting = !!(scrollAnim && scrollAnim.el === el);
+    if (retargeting && Math.abs(scrollAnim.to - clamped) < 2) {
       if (sOpts.onDone) scrollAnim.onDone = sOpts.onDone;
       return;
     }
@@ -2185,12 +2186,14 @@ function modal(title, body, buttons = [], opts = {}) {
     const start = performance.now();
     const from = cur;
     const delta = clamped - from;
-    const state = { el, from, to: clamped, start, duration, rafId: 0, onDone: sOpts.onDone || null };
+    const state = { el, from, to: clamped, start, duration, retargeting, rafId: 0, onDone: sOpts.onDone || null };
     scrollAnim = state;
     const step = (now) => {
       if (scrollAnim !== state) return;
       const t = Math.min(1, (now - state.start) / state.duration);
-      const ease = 1 - Math.pow(1 - t, 3);
+      const ease = state.retargeting
+        ? (1 - Math.pow(1 - t, 2.2))
+        : (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
       state.el.scrollTop = state.from + delta * ease;
       if (t < 1) {
         state.rafId = requestAnimationFrame(step);
@@ -2283,11 +2286,11 @@ function modal(title, body, buttons = [], opts = {}) {
           scrollContainer.style.setProperty("--kb-spacer", `${neededSpacer}px`);
         }
       }
-      smoothScrollTo(scrollContainer, desiredTop, { duration: isVvAnimating ? 140 : 280 });
+      smoothScrollTo(scrollContainer, desiredTop, { duration: isVvAnimating ? 280 : 440 });
     } else if (r.top < effectiveTop) {
       const delta = r.top - effectiveTop;
       const desiredTop = Math.max(0, scrollContainer.scrollTop + delta);
-      smoothScrollTo(scrollContainer, desiredTop, { duration: isVvAnimating ? 140 : 280 });
+      smoothScrollTo(scrollContainer, desiredTop, { duration: isVvAnimating ? 280 : 440 });
     }
   };
 
@@ -2319,7 +2322,7 @@ function modal(title, body, buttons = [], opts = {}) {
       document.documentElement.style.setProperty("--vv-top", "0px");
     };
 
-    const minSettleMs = isReducedMotion() ? 0 : 280;
+    const minSettleMs = isReducedMotion() ? 0 : 440;
     clearTimeout(kbCloseTimer);
     kbCloseTimer = setTimeout(() => {
       timeDone = true;
@@ -2337,7 +2340,7 @@ function modal(title, body, buttons = [], opts = {}) {
       const naturalMaxScroll = Math.max(0, naturalScrollH - estNaturalClientH);
       const returnTop = Math.min(sc.scrollTop, hasSavedPreKbScroll ? Math.max(preKbScrollTop, 0) : naturalMaxScroll, naturalMaxScroll);
       smoothScrollTo(sc, returnTop, {
-        duration: 280,
+        duration: 440,
         onDone: () => {
           scrollDone = true;
           finish();
