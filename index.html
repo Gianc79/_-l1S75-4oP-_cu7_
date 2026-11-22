@@ -1211,15 +1211,15 @@ button,.btn,.modal-close,.scroll-top-btn,.nav-btn,.header-icon,.filter-clear,inp
 /* Generale 2: transizione leggera e armoniosa tra finestre (avanti, indietro e chiusura) */
 @keyframes modalBackdropIn{from{opacity:0}to{opacity:1}}
 @keyframes modalBackdropOut{from{opacity:1}to{opacity:0}}
-@keyframes modalWindowIn{from{opacity:0;transform:translateY(10px) scale(.986)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes modalWindowOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(8px) scale(.986)}}
-@keyframes modalSwitchIn{from{opacity:0;transform:translateY(7px) scale(.988)}to{opacity:1;transform:translateY(0) scale(1)}}
-.modal-backdrop.modal-opening{animation:modalBackdropIn .18s ease-out}
-.modal-backdrop.modal-closing{animation:modalBackdropOut .16s ease-out forwards;pointer-events:none}
-.modal-backdrop.modal-closing .modal{animation:modalWindowOut .16s cubic-bezier(.4,0,.2,1) forwards}
-.modal.modal-enter{animation:modalWindowIn .22s cubic-bezier(.22,1,.36,1)}
-.modal.modal-switch{animation:modalSwitchIn .2s cubic-bezier(.22,1,.36,1)}
-.page-in{animation:pageIn .22s cubic-bezier(.22,1,.36,1)}
+@keyframes modalWindowIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes modalWindowOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(10px) scale(.985)}}
+@keyframes modalSwitchIn{from{opacity:0;transform:translateY(10px) scale(.986)}to{opacity:1;transform:translateY(0) scale(1)}}
+.modal-backdrop.modal-opening{animation:modalBackdropIn .32s cubic-bezier(.25,.8,.25,1)}
+.modal-backdrop.modal-closing{animation:modalBackdropOut .28s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
+.modal-backdrop.modal-closing .modal{animation:modalWindowOut .28s cubic-bezier(.4,0,.2,1) forwards}
+.modal.modal-enter{animation:modalWindowIn .38s cubic-bezier(.25,.8,.25,1)}
+.modal.modal-switch{animation:modalSwitchIn .36s cubic-bezier(.25,.8,.25,1)}
+.page-in{animation:pageIn .36s cubic-bezier(.25,.8,.25,1)}
 @media(prefers-reduced-motion:reduce){.modal-backdrop.modal-opening,.modal-backdrop.modal-closing,.modal-backdrop.modal-closing .modal,.modal.modal-enter,.modal.modal-switch,.page-in{animation:none!important}}
 /* Finestre Aggiungi articolo e Configurazione supermercato: riga divisoria continua sotto il titolo */
 .modal.modal-themed>.modal-header,.modal.modal-header-themed>.modal-header{position:relative;z-index:12}
@@ -1419,6 +1419,46 @@ function fitStoreChipLabels(root = document) {
 const uuid = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
 const now = () => (/* @__PURE__ */ new Date()).toISOString();
 const norm = (s) => String(s ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("it");
+const searchNorm = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("it");
+function searchRank(label, rawQuery) {
+  const q = searchNorm(rawQuery);
+  if (!q) return 0;
+  const t = searchNorm(label);
+  if (t.startsWith(q)) return 0;
+  if (t.split(/[\s\-/'().,]+/).some((w) => w.startsWith(q))) return 1;
+  if (t.includes(q)) return 2;
+  return -1;
+}
+function filterBySearch(list, rawQuery, getLabel) {
+  const q = searchNorm(rawQuery);
+  if (!q) return list;
+  const ranked = [];
+  for (let i = 0; i < list.length; i++) {
+    const r = searchRank(getLabel(list[i]), q);
+    if (r >= 0) ranked.push({ item: list[i], r, i });
+  }
+  ranked.sort((a, b) => (a.r - b.r) || (a.i - b.i));
+  return ranked.map((x) => x.item);
+}
+function applyDropdownSearch(container, rows, rawQuery, getLabel, opts = {}) {
+  const q = searchNorm(rawQuery);
+  const keepLast = opts.keepLast;
+  const anchor = opts.insertBefore || null;
+  let vis = 0;
+  const items = rows.map((row, idx) => {
+    if (row.dataset.origIdx === undefined) row.dataset.origIdx = String(idx);
+    const origIdx = Number(row.dataset.origIdx);
+    const pinnedLast = !!(keepLast && keepLast(row));
+    const rank = pinnedLast ? 99 : searchRank(getLabel(row), q);
+    const hide = !!q && !pinnedLast && rank < 0;
+    row.hidden = hide;
+    if (!hide && !pinnedLast) vis++;
+    return { row, rank: q ? rank : 0, origIdx, pinnedLast };
+  });
+  items.sort((a, b) => (a.pinnedLast - b.pinnedLast) || (a.rank - b.rank) || (a.origIdx - b.origIdx));
+  items.forEach(({ row }) => container.insertBefore(row, anchor));
+  return vis;
+}
 const money = (cents) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format((cents || 0) / 100);
 const assignUnit = (u) => u === "pz." ? "pz" : u;
 const moneyPerUnit = (cents, unit) => `${((cents || 0) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} \u20AC/${assignUnit(unit)}`;
@@ -1975,7 +2015,7 @@ function closeModal(runOnClose = true) {
     bd.classList.add("modal-closing");
     updateScrollTopButton();
     updateFloatingAddButton();
-    activeModalCloseTimer = setTimeout(finishClose, 165);
+    activeModalCloseTimer = setTimeout(finishClose, 285);
   } else {
     $("#modalRoot").innerHTML = "";
     updateScrollTopButton();
@@ -3510,7 +3550,7 @@ async function confirmDialog(title, message, confirmText = "Elimina", opts = {})
         } else {
           overlay.classList.remove("modal-opening");
           overlay.classList.add("modal-closing");
-          setTimeout(() => overlay.remove(), 165);
+          setTimeout(() => overlay.remove(), 285);
         }
       };
       const dismiss = () => {
@@ -3615,16 +3655,17 @@ function multiFilterHtml({ id, allLabel, emptyLabel, options, selected, showAll,
   const selectedSet = new Set(selected || []);
   const active = !allDisabled && !showAll;
   const summaryHtml = multiFilterSummaryHtml({ allLabel, emptyLabel, options, selected, showAll });
-  const q = norm(searchQuery || "");
+  const q = searchNorm(searchQuery || "");
   let visibleCount = 0;
-  const optsHtml = options.map((opt) => {
+  const orderedOpts = q ? filterBySearch(options, q, (o) => o.label).concat(options.filter((o) => searchRank(o.label, q) < 0)) : options;
+  const optsHtml = orderedOpts.map((opt) => {
     const checked = !opt.disabled && (showAll || selectedSet.has(opt.id));
-    const isHidden = !!q && !norm(opt.label).startsWith(q);
+    const isHidden = !!q && searchRank(opt.label, q) < 0;
     if (!isHidden) visibleCount++;
     return `<label class="check-line${opt.disabled ? " is-disabled" : ""}" data-filter-label="${esc(opt.label)}"${isHidden ? " hidden" : ""}><input type="checkbox" data-filter-opt="${esc(id)}" data-value="${esc(opt.id)}" ${checked ? "checked" : ""} ${opt.disabled ? "disabled" : ""}> <span>${opt.html || esc(opt.label)}</span></label>`;
   }).join("");
   const emptyHidden = !q || visibleCount > 0;
-  return `<div class="store-filter-wrap" data-multi-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="true" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${summaryHtml}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Digita le iniziali\u2026" autocomplete="off" value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div><label class="check-line filter-all-row${allDisabled ? " is-disabled" : ""}"${q ? " hidden" : ""}><input type="checkbox" data-filter-all="${esc(id)}" ${!allDisabled && showAll ? "checked" : ""} ${allDisabled ? "disabled" : ""}> <span>Seleziona tutti</span></label>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
+  return `<div class="store-filter-wrap" data-multi-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="true" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${summaryHtml}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Cerca\u2026" autocomplete="off" value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div><label class="check-line filter-all-row${allDisabled ? " is-disabled" : ""}"${q ? " hidden" : ""}><input type="checkbox" data-filter-all="${esc(id)}" ${!allDisabled && showAll ? "checked" : ""} ${allDisabled ? "disabled" : ""}> <span>Seleziona tutti</span></label>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
 }
 function updateMultiFilterUI(id, { allLabel, emptyLabel, options, selected, showAll, allDisabled }) {
   const trigger = $(`#${id}Trigger`), summary = $(`#${id}Summary`), menu = $(`#${id}Menu`);
@@ -3656,14 +3697,10 @@ function wireMultiFilter(id, { onAllChange, onItemChange }) {
   const applySearch = () => {
     if (!ds) return;
     if (dcl) dcl.hidden = !ds.value;
-    const q = norm(ds.value);
+    const q = searchNorm(ds.value);
     if (allRow) allRow.hidden = !!q;
-    let vis = 0;
-    menu.querySelectorAll("[data-filter-label]").forEach((row) => {
-      const hide = !!q && !norm(row.dataset.filterLabel).startsWith(q);
-      row.hidden = hide;
-      if (!hide) vis++;
-    });
+    const rows = [...menu.querySelectorAll("[data-filter-label]")];
+    const vis = applyDropdownSearch(menu, rows, ds.value, (row) => row.dataset.filterLabel, { insertBefore: emptyMsg });
     if (emptyMsg) emptyMsg.hidden = !q || vis > 0;
   };
   if (dcl) {
@@ -3718,16 +3755,17 @@ function singleFilterHtml({ id, allLabel, options, selectedValue, allDisabled = 
   const allOptions = [{ id: "all", label: allLabel, html: "", disabled: false }].concat(options || []);
   const current = allOptions.find((o) => o.id === selectedId) || allOptions[0];
   const active = !allDisabled && selectedId !== "all";
-  const q = norm(searchQuery || "");
+  const q = searchNorm(searchQuery || "");
   let visibleCount = 0;
-  const optsHtml = allOptions.map((opt) => {
+  const orderedOpts = q ? filterBySearch(allOptions, q, (o) => o.label).concat(allOptions.filter((o) => searchRank(o.label, q) < 0)) : allOptions;
+  const optsHtml = orderedOpts.map((opt) => {
     const selected = opt.id === selectedId;
-    const isHidden = !!q && !norm(opt.label).startsWith(q);
+    const isHidden = !!q && searchRank(opt.label, q) < 0;
     if (!isHidden) visibleCount++;
     return `<button type="button" class="custom-dropdown-option${selected ? " selected" : ""}${opt.disabled ? " is-disabled" : ""}" role="option" aria-selected="${selected ? "true" : "false"}" ${opt.disabled ? 'disabled aria-disabled="true"' : ""} data-filter-opt="${esc(id)}" data-value="${esc(opt.id)}" data-filter-label="${esc(opt.label)}"${isHidden ? " hidden" : ""}>${opt.html || esc(opt.label)}</button>`;
   }).join("");
   const emptyHidden = !q || visibleCount > 0;
-  return `<div class="store-filter-wrap" data-single-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="listbox" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${current.html || esc(current.label)}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" role="listbox" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Digita le iniziali\u2026" autocomplete="off" value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
+  return `<div class="store-filter-wrap" data-single-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="listbox" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${current.html || esc(current.label)}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" role="listbox" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Cerca\u2026" autocomplete="off" value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
 }
 function updateSingleFilterUI(id, { allLabel, options, selectedValue, allDisabled = false }) {
   const trigger = $(`#${id}Trigger`), summary = $(`#${id}Summary`), menu = $(`#${id}Menu`);
@@ -3758,13 +3796,9 @@ function wireSingleFilter(id, { onSelect }) {
   const applySearch = () => {
     if (!ds) return;
     if (dcl) dcl.hidden = !ds.value;
-    const q = norm(ds.value);
-    let vis = 0;
-    menu.querySelectorAll("[data-filter-label]").forEach((row) => {
-      const hide = !!q && !norm(row.dataset.filterLabel).startsWith(q);
-      row.hidden = hide;
-      if (!hide) vis++;
-    });
+    const q = searchNorm(ds.value);
+    const rows = [...menu.querySelectorAll("[data-filter-label]")];
+    const vis = applyDropdownSearch(menu, rows, ds.value, (row) => row.dataset.filterLabel, { insertBefore: emptyMsg });
     if (emptyMsg) emptyMsg.hidden = !q || vis > 0;
   };
   if (dcl) {
@@ -4072,7 +4106,8 @@ async function openAddItem() {
       rf.disabled = !act;
       rf.classList.toggle("dim", !act);
     }
-    const q = norm(inp.value), filtered = products.filter((p) => matchesStore(p, asv.store) && matchesCat(p, asv.cat) && (!q || norm(p.name).startsWith(q)));
+    const scoped = products.filter((p) => matchesStore(p, asv.store) && matchesCat(p, asv.cat));
+    const filtered = filterBySearch(scoped, inp.value, (p) => p.name);
     const items = await activeItems(), itemByProduct = new Map(items.map((i) => [i.productId, i]));
     choices.innerHTML = filtered.length ? filtered.map((p) => {
       const existing = itemByProduct.get(p.id);
@@ -4410,32 +4445,30 @@ async function openQuickEdit(itemId, ov = null) {
 function customDropdown(id, selectedId, options, includeNone = true, inline = false, searchable = false) {
   const choices = (includeNone ? [{ id: "", name: "Nessuno", menuName: "Nessuno", labelHtml: "", menuHtml: "", disabled: false }] : []).concat(options.map((x) => ({ id: x.id, name: x.name, menuName: x.menuName || x.name, labelHtml: x.labelHtml || "", menuHtml: x.menuHtml || "", disabled: !!x.disabled })));
   const current = choices.find((x) => x.id === (selectedId || "")) || choices[0] || { id: "", name: "Nessuno", menuName: "Nessuno", labelHtml: "", menuHtml: "" };
-  return `<div class="custom-dropdown${inline ? " inline-dd" : ""}" data-custom-dropdown="${esc(id)}"><input type="hidden" id="${esc(id)}" value="${esc(current.id)}"><button type="button" class="custom-dropdown-trigger" id="${esc(id)}Trigger" aria-haspopup="listbox" aria-expanded="false"><span id="${esc(id)}Label"${current.id === "__none__" ? ' class="it"' : ""}>${current.labelHtml || esc(current.name)}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><div class="custom-dropdown-menu" id="${esc(id)}Menu" role="listbox" hidden>${searchable ? '<div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Digita le iniziali\u2026" autocomplete="off"><button type="button" class="dd-clear" hidden aria-label="Cancella testo">\xD7</button></div>' : ""}${choices.map((x) => `<button type="button" class="custom-dropdown-option ${x.id === current.id ? "selected" : ""}${x.disabled ? " is-disabled" : ""}" role="option" aria-selected="${x.id === current.id ? "true" : "false"}" ${x.disabled ? 'disabled aria-disabled="true"' : ""} data-dropdown-id="${esc(id)}" data-value="${esc(x.id)}" data-label="${esc(x.name)}"${x.labelHtml ? ` data-label-html="${esc(x.labelHtml)}"` : ""}>${x.menuHtml || x.labelHtml || esc(x.menuName || x.name)}</button>`).join("")}</div></div>`;
+  return `<div class="custom-dropdown${inline ? " inline-dd" : ""}" data-custom-dropdown="${esc(id)}"><input type="hidden" id="${esc(id)}" value="${esc(current.id)}"><button type="button" class="custom-dropdown-trigger" id="${esc(id)}Trigger" aria-haspopup="listbox" aria-expanded="false"><span id="${esc(id)}Label"${current.id === "__none__" ? ' class="it"' : ""}>${current.labelHtml || esc(current.name)}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><div class="custom-dropdown-menu" id="${esc(id)}Menu" role="listbox" hidden>${searchable ? '<div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Cerca\u2026" autocomplete="off"><button type="button" class="dd-clear" hidden aria-label="Cancella testo">\xD7</button></div>' : ""}${choices.map((x) => `<button type="button" class="custom-dropdown-option ${x.id === current.id ? "selected" : ""}${x.disabled ? " is-disabled" : ""}" role="option" aria-selected="${x.id === current.id ? "true" : "false"}" ${x.disabled ? 'disabled aria-disabled="true"' : ""} data-dropdown-id="${esc(id)}" data-value="${esc(x.id)}" data-label="${esc(x.name)}"${x.labelHtml ? ` data-label-html="${esc(x.labelHtml)}"` : ""}>${x.menuHtml || x.labelHtml || esc(x.menuName || x.name)}</button>`).join("")}</div></div>`;
 }
 function wireCustomDropdown(id) {
   const ds0 = $(`#${id}Menu .dd-search`);
   if (ds0) {
     const tr = $(`#${id}Trigger`), mn = $(`#${id}Menu`);
     const dcl = ds0.parentElement.querySelector(".dd-clear");
+    const runSearch = () => {
+      dcl.hidden = !ds0.value;
+      const opts = [...mn.querySelectorAll(".custom-dropdown-option")];
+      applyDropdownSearch(mn, opts, ds0.value, (o) => o.dataset.label, { keepLast: (o) => o.dataset.value === "__new__" });
+    };
     dcl.addEventListener("mousedown", (e) => e.preventDefault());
     dcl.addEventListener("click", () => {
       ds0.value = "";
-      ds0.dispatchEvent(new Event("input"));
+      runSearch();
       ds0.blur();
     });
-    ds0.addEventListener("input", () => {
-      dcl.hidden = !ds0.value;
-      const q = norm(ds0.value);
-      mn.querySelectorAll(".custom-dropdown-option").forEach((o) => {
-        o.hidden = !!q && o.dataset.value !== "__new__" && !norm(o.dataset.label).startsWith(q);
-      });
-    });
+    ds0.addEventListener("input", runSearch);
     tr.addEventListener("click", () => {
       setTimeout(() => {
         if (!mn.hidden) {
           ds0.value = "";
-          dcl.hidden = true;
-          mn.querySelectorAll(".custom-dropdown-option").forEach((o) => o.hidden = false);
+          runSearch();
         }
       }, 40);
     });
@@ -4543,7 +4576,7 @@ async function renderProducts() {
   const paint = () => {
     curOpts = computeOpts();
     pv.q = $("#productsSearch").value;
-    const q = norm(pv.q), scope = scopeOf(), filtered = scope.filter((p) => !q || norm(p.name).startsWith(q));
+    const scope = scopeOf(), filtered = filterBySearch(scope, pv.q, (p) => p.name);
     d.disabled = !scope.length;
     d.classList.toggle("dim", !scope.length);
     updateSingleFilterUI("prodFilterStore", { allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: pv.store, allDisabled: curOpts.allStoresDisabled });
@@ -5114,8 +5147,7 @@ async function renderCategories() {
   const list = $("#categoriesList"), inp = $("#catsSearch");
   const paint = () => {
     catsSearchQuery = inp.value;
-    const q = norm(catsSearchQuery);
-    const filtered = q ? cats.filter((c) => norm(c.name).startsWith(q)) : cats;
+    const filtered = filterBySearch(cats, catsSearchQuery, (c) => c.name);
     $("#catsCount").textContent = String(filtered.length);
     list.innerHTML = filtered.length ? filtered.map((c) => {
       const n = counts[c.id] || 0;
@@ -5241,7 +5273,7 @@ async function openCategoryProductPicker(id) {
   modal("Aggiungi articolo", '<div class="pick-sticky-head"><button type="button" class="btn btn-primary btn-block" id="pickNew" style="margin-bottom:10px">\uFF0B Crea nuovo articolo</button><div class="field" style="margin-bottom:0"><input id="pickSearch" type="search" class="search-input" placeholder="Cerca articolo\u2026" autocomplete="off"></div></div><div id="pickList"></div>', [], { closeButton: true, backdropClose: false, keepModalOnClose: true, alignTop: true, themed: true, onClose: () => openCategoryForm(id, true) });
   const inp = $("#pickSearch");
   const paint = () => {
-    const q = norm(inp.value), f = all.filter((p) => !q || norm(p.name).startsWith(q));
+    const f = filterBySearch(all, inp.value, (p) => p.name);
     $("#pickList").innerHTML = f.map((p) => `<button type="button" class="pick-opt" data-pick="${p.id}" ${p.categoryId === id ? "disabled" : ""}><span class="item-top-row"><strong class="row-name">${esc(p.name)}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span><span class="pick-sub">${esc(cmap[p.categoryId]?.name || "Senza reparto")}</span></button>`).join("") || '<div class="empty">Nessun articolo trovato.</div>';
     $("#pickList").querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", async () => {
       const pr = all.find((x) => x.id === b.dataset.pick);
@@ -5333,7 +5365,7 @@ async function openCategoryForm(id, keep = false) {
   ms.value = catDetailQuery;
   const paint = () => {
     catDetailQuery = ms.value;
-    const q = norm(ms.value), f = all.filter((p) => !q || norm(p.name).startsWith(q));
+    const f = filterBySearch(all, ms.value, (p) => p.name);
     $("#catMembersCount").textContent = "(" + all.length + ")";
     list.innerHTML = f.map((p) => swipeWrap(`<div class="list-row compact" data-cat-rm="${p.id}"><button type="button" class="row-button" data-cat-open="${p.id}"><span class="item-top-row"><span class="row-name">${esc(p.name)}</span><span class="row-qty">${esc(assignUnit(p.unit))}</span></span></button></div>`, "swipe-compact")).join("") || `<div class="empty">${all.length ? "Nessun articolo trovato." : "Nessun articolo ancora abbinato."}</div>`;
     list.querySelectorAll("[data-cat-open]").forEach((b) => b.addEventListener("click", () => openProductForm(b.dataset.catOpen, "categoryDetail", id)));
