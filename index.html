@@ -1499,6 +1499,8 @@ input.caret-hidden{caret-color:transparent!important}
 .assign-product-name{flex:1;min-width:0;display:block;font-size:15.5px;font-weight:800;color:#17211e;line-height:1.22;overflow-wrap:anywhere}
 .assign-product-unit{flex:0 0 auto;font-size:15px;font-weight:400;line-height:1.22;padding-top:0;color:var(--muted);white-space:nowrap;text-align:right}
 .assign-product-brand{display:block;font-size:14px;font-weight:700;line-height:1.22;color:#1e6bb8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+/* Contenuto netto @[UM] in arancione per articoli con imballo Sfuso */
+.desc-net-sfuso,#pickList .pick-opt .desc-net-sfuso{display:inline;font-size:inherit;font-weight:inherit;color:#d45a00}
 </style>
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
@@ -4220,7 +4222,7 @@ async function renderList(keepFilterOpen = false) {
       const catHtml = p.categoryId && cMap[p.categoryId] ? esc(catLabel) : `<span class="it">${esc(catLabel)}</span>`;
       const dp = productDisplayParts(p);
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : "";
-      html += swipeWrap(`<div class="list-row shopping-list-row ${item.checked ? "checked" : ""}" data-list-item-id="${item.id}"><div class="item-check"><input type="checkbox" aria-label="Segna ${esc(p.name)} come acquistato" data-check-item="${item.id}" ${item.checked ? "checked" : ""}></div><button type="button" class="row-button item-body" data-edit-item="${item.id}" aria-label="Modifica ${esc(p.name)}"><span class="item-top-row"><span class="row-name">${esc(dp.title)}</span><span class="row-qty">${qtyText}</span></span>${brandRow}<span class="item-bottom-row"><span class="row-cat">${catHtml}</span><span class="row-price${hasPrice ? "" : " is-nd"}">${priceText}</span></span></button></div>`, "swipe-shopping");
+      html += swipeWrap(`<div class="list-row shopping-list-row ${item.checked ? "checked" : ""}" data-list-item-id="${item.id}"><div class="item-check"><input type="checkbox" aria-label="Segna ${esc(dp.title)} come acquistato" data-check-item="${item.id}" ${item.checked ? "checked" : ""}></div><button type="button" class="row-button item-body" data-edit-item="${item.id}" aria-label="Modifica ${esc(dp.title)}"><span class="item-top-row"><span class="row-name">${dp.titleHtml}</span><span class="row-qty">${qtyText}</span></span>${brandRow}<span class="item-bottom-row"><span class="row-cat">${catHtml}</span><span class="row-price${hasPrice ? "" : " is-nd"}">${priceText}</span></span></button></div>`, "swipe-shopping");
     }
     if (lastStore !== "") html += "</div>";
   }
@@ -4357,7 +4359,7 @@ async function openAddItem() {
       rf.classList.toggle("dim", !act);
     }
     const scoped = products.filter((p) => matchesStore(p, asv.store) && matchesCat(p, asv.cat));
-    const filtered = filterBySearch(scoped, inp.value, (p) => p.name);
+    const filtered = filterBySearch(scoped, inp.value, productSearchText);
     const items = await activeItems(), itemByProduct = new Map(items.map((i) => [i.productId, i]));
     choices.innerHTML = filtered.length ? filtered.map((p) => {
       const existing = itemByProduct.get(p.id);
@@ -4366,10 +4368,10 @@ async function openAddItem() {
         const subRow = dp.brand
           ? `<span class="choice-sub-row"><span class="row-brand">${esc(dp.brand)}</span><span class="row-sub">Gi\xE0 aggiunto alla lista</span></span>`
           : `<span class="choice-sub-row"><span class="row-sub is-solo">Gi\xE0 aggiunto alla lista</span></span>`;
-        return swipeWrap(`<div class="choice-row already-in-list" data-remove-added-product="${existing.id}"><div class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${esc(dp.title)}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${subRow}</div></div>`, "swipe-choice");
+        return swipeWrap(`<div class="choice-row already-in-list" data-remove-added-product="${existing.id}"><div class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${dp.titleHtml}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${subRow}</div></div>`, "swipe-choice");
       }
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : '<span class="row-brand is-empty" aria-hidden="true">&nbsp;</span>';
-      return `<button type="button" class="choice-row choice-row-3d" data-add-product="${p.id}" aria-label="Aggiungi ${esc(p.name)} alla lista"><span class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${esc(dp.title)}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</span></button>`;
+      return `<button type="button" class="choice-row choice-row-3d" data-add-product="${p.id}" aria-label="Aggiungi ${esc(dp.title)} alla lista"><span class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${dp.titleHtml}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</span></button>`;
     }).join("") : '<div class="empty">Nessun articolo trovato.</div>';
     choices.querySelectorAll("[data-add-product]").forEach((b) => b.addEventListener("click", () => addProductToList(b.dataset.addProduct)));
     bindSwipeDelete(choices, "[data-remove-added-product]", async (row) => {
@@ -4448,7 +4450,7 @@ function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor, initia
   return `<div class="assign-editor">
     <div class="assign-product-card">
       <div class="assign-product-top">
-        <span class="assign-product-name">${esc(dp.title)}</span>
+        <span class="assign-product-name">${dp.titleHtml}</span>
         <span class="assign-product-unit">${esc(unit)}</span>
       </div>
       ${brandRow}
@@ -4838,7 +4840,7 @@ async function renderProducts() {
   const paint = () => {
     curOpts = computeOpts();
     pv.q = $("#productsSearch").value;
-    const scope = scopeOf(), filtered = filterBySearch(scope, pv.q, (p) => p.name);
+    const scope = scopeOf(), filtered = filterBySearch(scope, pv.q, productSearchText);
     d.disabled = !scope.length;
     d.classList.toggle("dim", !scope.length);
     updateSingleFilterUI("prodFilterStore", { allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: pv.store, allDisabled: curOpts.allStoresDisabled });
@@ -4857,14 +4859,16 @@ async function renderProducts() {
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : "";
       const catLabel = cats[p.categoryId]?.name || "Senza reparto";
       const catHtml = p.categoryId && cats[p.categoryId] ? esc(catLabel) : `<span class="it">${esc(catLabel)}</span>`;
-      return swipeWrap(`<div class="list-row compact prod-card-row" data-delete-product="${p.id}"><button type="button" class="row-button" style="text-align:left" data-product="${p.id}"><span class="item-top-row"><span class="row-name">${esc(dp.title)}</span><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}<span class="product-meta">${catHtml}</span></button></div>`, "swipe-compact");
+      return swipeWrap(`<div class="list-row compact prod-card-row" data-delete-product="${p.id}"><button type="button" class="row-button" style="text-align:left" data-product="${p.id}"><span class="item-top-row"><span class="row-name">${dp.titleHtml}</span><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}<span class="product-meta">${catHtml}</span></button></div>`, "swipe-compact");
     }).join("") : '<div class="empty">Nessun articolo. Puoi crearne uno con il pulsante qui sopra.</div>';
     $("#productsList").querySelectorAll("[data-product]").forEach((b) => b.addEventListener("click", () => openProductForm(b.dataset.product, "products")));
     bindSwipeDelete($("#productsList"), "[data-delete-product]", async (row) => {
       const pid = row.dataset.deleteProduct;
       const p = await getOne("products", pid);
       if (!p) return false;
-      const yes = await confirmDialog("Elimina articolo", `L\u2019articolo \u201C${esc(p.name)}\u201D verr\xE0 rimosso definitivamente dal database. Procedere comunque?`, "Elimina", { closeButton: false, backdropClose: false });
+      const dpDel = productDisplayParts(p);
+      const delLabel = [dpDel.title, dpDel.brand].filter(Boolean).join(" ") || p.name;
+      const yes = await confirmDialog("Elimina articolo", `L\u2019articolo \u201C${esc(delLabel)}\u201D verr\xE0 rimosso definitivamente dal database. Procedere comunque?`, "Elimina", { closeButton: false, backdropClose: false });
       if (!yes) return false;
       const [associations, prices, items] = await Promise.all([getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems")]);
       const snapPs = associations.filter((x) => x.productId === pid);
@@ -4990,38 +4994,57 @@ function formatPackQtyValue(q) {
   if (!Number.isFinite(n) || n <= 0) return "";
   return n.toLocaleString("it-IT", { maximumFractionDigits: 3, useGrouping: false });
 }
-function composeProductDescription(itemName, brand, packQtyRaw, packUnit, strictFormat = false) {
+function composeProductDescription(itemName, brand, packQtyRaw, packUnit, strictFormat = false, packaging = "confezione") {
   const n = String(itemName || "").trim().replace(/\s+/g, " ");
   const b = String(brand || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
-  const rawQ = String(packQtyRaw ?? "").trim();
-  let qtyText = "";
-  if (rawQ) {
-    const q = parseQty(rawQ);
-    if (strictFormat) {
-      qtyText = formatPackQtyValue(q);
-    } else if (/[.,]$/.test(rawQ)) {
-      qtyText = rawQ.replace(".", ",");
-    } else if (Number.isFinite(q) && q > 0) {
-      qtyText = formatPackQtyValue(q);
-    } else {
-      qtyText = rawQ.replace(".", ",");
-    }
-  }
   const u = String(packUnit || "").trim();
-  const qtyPart = qtyText && u ? `${qtyText}${u}` : qtyText;
+  let qtyPart = "";
+  if (packaging === "sfuso") {
+    qtyPart = u ? `@${u}` : "";
+  } else {
+    const rawQ = String(packQtyRaw ?? "").trim();
+    let qtyText = "";
+    if (rawQ) {
+      const q = parseQty(rawQ);
+      if (strictFormat) {
+        qtyText = formatPackQtyValue(q);
+      } else if (/[.,]$/.test(rawQ)) {
+        qtyText = rawQ.replace(".", ",");
+      } else if (Number.isFinite(q) && q > 0) {
+        qtyText = formatPackQtyValue(q);
+      } else {
+        qtyText = rawQ.replace(".", ",");
+      }
+    }
+    qtyPart = qtyText && u ? `${qtyText}${u}` : qtyText;
+  }
   return [n, b, qtyPart].filter(Boolean).join(" ");
 }
+function formatTitleWithNetHtml(itemNameVal, qtyPart, isSfuso) {
+  const n = String(itemNameVal || "").trim().replace(/\s+/g, " ");
+  const q = String(qtyPart || "").trim();
+  if (!q) return esc(n);
+  const qHtml = isSfuso ? `<span class="desc-net-sfuso">${esc(q)}</span>` : esc(q);
+  return n ? `${esc(n)} ${qHtml}` : qHtml;
+}
 function productDisplayParts(p) {
-  if (!p) return { title: "", brand: "" };
+  if (!p) return { title: "", titleHtml: "", brand: "", isSfuso: false };
   if (p.packaging === "confezione" || p.packaging === "sfuso") {
     const f = extractProductFields(p);
-    const qtyPart = composeProductDescription("", "", f.packaging === "sfuso" ? 1 : p.packQty, f.packUnit, true);
+    const isSfuso = f.packaging === "sfuso";
+    const qtyPart = composeProductDescription("", "", isSfuso ? 1 : p.packQty, f.packUnit, true, f.packaging);
     const title = [f.itemName, qtyPart].filter(Boolean).join(" ") || String(p.name || "").trim();
+    const titleHtml = (f.itemName || qtyPart) ? formatTitleWithNetHtml(f.itemName, qtyPart, isSfuso) : esc(String(p.name || "").trim());
     const brand = String(f.brand || "").trim();
-    return { title, brand };
+    return { title, titleHtml, brand, isSfuso };
   }
+  const rawName = String(p.name || "").trim();
   const brand = String(p.brand || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
-  return { title: String(p.name || "").trim(), brand };
+  return { title: rawName, titleHtml: esc(rawName), brand, isSfuso: false };
+}
+function productSearchText(p) {
+  const dp = productDisplayParts(p);
+  return dp.brand ? `${dp.title} ${dp.brand}` : dp.title;
 }
 function extractProductFields(p) {
   if (!p) {
@@ -5104,12 +5127,14 @@ async function openProductForm(productId, returnPage = "products", returnCategor
   const initialPackUnit = initFields.packUnit;
   const initialPackQtyStr = initialPackaging === "sfuso" ? (isPiecePackUnit(initialPackUnit) ? "1" : "1,000") : initFields.packQtyStr;
   const initialSalesUnit = salesUnitForPackaging(initialPackaging, initialPackUnit);
-  const buildDescPreviewHtml = (itemNameVal, brandVal, packQtyVal, packUnitVal) => {
-    const line1 = composeProductDescription(itemNameVal, "", packQtyVal, packUnitVal, false);
+  const buildDescPreviewHtml = (itemNameVal, brandVal, packQtyVal, packUnitVal, packVal) => {
+    const isSfuso = packVal === "sfuso";
+    const qtyPart = composeProductDescription("", "", packQtyVal, packUnitVal, false, packVal);
+    const line1Html = formatTitleWithNetHtml(itemNameVal, qtyPart, isSfuso);
     const line2 = String(brandVal || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
-    return `<span class="prod-desc-line1">${line1 ? esc(line1) : "&nbsp;"}</span><span class="prod-desc-line2">${line2 ? esc(line2) : "&nbsp;"}</span>`;
+    return `<span class="prod-desc-line1">${line1Html || "&nbsp;"}</span><span class="prod-desc-line2">${line2 ? esc(line2) : "&nbsp;"}</span>`;
   };
-  const initialDescHtml = buildDescPreviewHtml(initFields.itemName, initFields.brand, initialPackQtyStr, initialPackUnit);
+  const initialDescHtml = buildDescPreviewHtml(initFields.itemName, initFields.brand, initialPackQtyStr, initialPackUnit, initialPackaging);
   const initialIsWeight = isWeightPackUnit(initialPackUnit);
   const initialIsVol = isVolumePackUnit(initialPackUnit);
   const initialIsLen = isLengthPackUnit(initialPackUnit);
@@ -5126,7 +5151,7 @@ async function openProductForm(productId, returnPage = "products", returnCategor
   const body = `<div class="product-editor"><form id="productForm"><div class="product-main-card">
     ${initFields.isLegacy ? `<div class="prod-legacy-note">Articolo da versione precedente (<strong>${esc(initFields.legacyName)}</strong>): completa i campi qui sotto per uniformare la descrizione.</div>` : ""}
     <div class="field"><div class="label-row"><label for="prodCategory">Reparto</label><span class="req req-pill" id="reqCat">Obbligatorio</span></div>${customDropdown("prodCategory", selectedCategory, [{ id: "", name: "Seleziona reparto" }].concat(cats.map((c) => ({ id: c.id, name: c.name })), [{ id: "__new__", name: "\uFF0B Nuovo reparto" }]), false, true, true)}</div>
-    <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodItemName">Nome</label>${tipBtn("prodNameTip", "Suggerimento nome articolo")}<span class="label-hint">(max ${PROD_NAME_MAX} caratteri)</span></div><span class="req req-pill" id="reqItemName">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNameTip" hidden>Inserire il nome dell\u2019articolo senza indicare la marca (es. Aceto di mele).</div><input id="prodItemName" type="text" maxlength="${PROD_NAME_MAX}" enterkeyhint="next" value="${esc(initFields.itemName)}" required autocomplete="off" placeholder="Es. Olio EVO, Pasta, Mele"></div>
+    <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodItemName">Nome</label>${tipBtn("prodNameTip", "Suggerimento nome articolo")}<span class="label-hint">(max ${PROD_NAME_MAX} caratteri)</span></div><span class="req req-pill" id="reqItemName">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNameTip" hidden>Inserire il nome dell\u2019articolo senza indicare la marca (es. Aceto di mele).</div><input id="prodItemName" type="text" maxlength="${PROD_NAME_MAX}" enterkeyhint="next" value="${esc(initFields.itemName)}" required autocomplete="off" placeholder="Es. Olio EVO, Gnocchi, Wafers"></div>
     <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodBrand">Marca</label><span class="label-hint">(max ${PROD_BRAND_MAX} caratteri)</span></div></div><div class="brand-ac-wrap" id="prodBrandAcWrap"><input id="prodBrand" type="text" maxlength="${PROD_BRAND_MAX}" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" value="${esc(initFields.brand)}" autocomplete="off" aria-autocomplete="inline"></div></div>
     <div class="field"><div class="label-row"><label id="prodPackagingLbl">Imballo</label></div><input type="hidden" id="prodPackaging" value="${esc(initialPackaging)}"><div class="prod-seg prod-seg-2" id="prodPackagingSeg" role="radiogroup" aria-labelledby="prodPackagingLbl"><button type="button" class="prod-seg-btn${initialPackaging === "confezione" ? " active" : ""}" data-pack-val="confezione" role="radio" aria-checked="${initialPackaging === "confezione" ? "true" : "false"}">${packIcon}<span>Confezione</span></button><button type="button" class="prod-seg-btn${initialPackaging === "sfuso" ? " active" : ""}" data-pack-val="sfuso" role="radio" aria-checked="${initialPackaging === "sfuso" ? "true" : "false"}">${looseIcon}<span>Sfuso</span></button></div></div>
     <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodPackQty" id="prodNetContentLbl">Contenuto netto</label>${tipBtn("prodNetContentTip", "Suggerimento contenuto netto")}</div><span class="req req-pill" id="reqPackQty">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNetContentTip" hidden>Es. Cassa di acqua di 6 bott. da 1,5 lt:<br>selezionare <strong>Confezione</strong>, <strong>lt</strong>, digitare <strong>9</strong> (6x1,5) e inserire il prezzo relativo alla confezione (intera cassa);<br>oppure selezionare <strong>Sfuso</strong>, <strong>lt</strong> e inserire il prezzo al litro (\u20AC/lt).</div><input type="hidden" id="prodPackUnit" value="${esc(initialPackUnit)}"><div class="prod-net-row"><div class="prod-seg prod-um-seg${initialPackaging === "sfuso" ? " is-loose" : ""}" id="prodPackUnitSeg" role="group" aria-labelledby="prodNetContentLbl"><div class="prod-um-dd" data-um-group="weight"><button type="button" class="prod-seg-btn prod-um-btn${initialIsWeight ? " active" : ""}" data-um-trigger="weight" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialWeightLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="weight" role="listbox" hidden>${PROD_WEIGHT_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><div class="prod-um-dd" data-um-group="volume"><button type="button" class="prod-seg-btn prod-um-btn${initialIsVol ? " active" : ""}" data-um-trigger="volume" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialVolumeLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="volume" role="listbox" hidden>${PROD_VOLUME_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><div class="prod-um-dd" data-um-group="length"><button type="button" class="prod-seg-btn prod-um-btn${initialIsLen ? " active" : ""}" data-um-trigger="length" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialLengthLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="length" role="listbox" hidden>${PROD_LENGTH_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><button type="button" class="prod-seg-btn prod-um-btn prod-um-direct${initialIsPiece ? " active" : ""}" data-um-direct="pz" aria-pressed="${initialIsPiece ? "true" : "false"}"><span class="prod-um-label">pz</span></button></div><div class="name-box prod-qty-box"><input id="prodPackQty" type="text" inputmode="${initialIsPiece ? "numeric" : "decimal"}" enterkeyhint="done" maxlength="7" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialPackQtyStr)}" placeholder="${esc(packQtyPlaceholderFor(initialPackUnit))}" ${initialPackaging === "sfuso" ? 'disabled readonly tabindex="-1" aria-disabled="true"' : ""}><button type="button" class="name-no" id="prodPackQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="prodPackQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div></div></div>
@@ -5206,7 +5231,7 @@ async function openProductForm(productId, returnPage = "products", returnCategor
 
   let getEffectiveBrandVal = () => brandInp?.value || "";
   const syncDescriptionPreview = () => {
-    if (descValueEl) descValueEl.innerHTML = buildDescPreviewHtml(itemNameInp?.value, getEffectiveBrandVal(), packQtyInp?.value, packUnitInp?.value);
+    if (descValueEl) descValueEl.innerHTML = buildDescPreviewHtml(itemNameInp?.value, getEffectiveBrandVal(), packQtyInp?.value, packUnitInp?.value, packInp?.value || "confezione");
   };
 
   const syncSalesUnitUI = () => {
@@ -5995,7 +6020,7 @@ async function saveProductForm(productId, returnPage, returnCategoryId = null) {
     return;
   }
 
-  const name = composeProductDescription(itemName, brand, packQty, packUnit, true);
+  const name = composeProductDescription(itemName, brand, packQty, packUnit, true, packaging);
   if (!name) {
     showToast("Compila tutti i campi obbligatori.");
     return;
@@ -6293,13 +6318,13 @@ async function openCategoryProductPicker(id) {
   modal("Aggiungi articolo", '<div class="pick-sticky-head"><button type="button" class="btn btn-primary btn-block" id="pickNew" style="margin-bottom:10px">\uFF0B Crea nuovo articolo</button><div class="field" style="margin-bottom:0"><input id="pickSearch" type="search" class="search-input" placeholder="Cerca articolo\u2026" autocomplete="off"></div></div><div id="pickList"></div>', [], { closeButton: true, backdropClose: false, keepModalOnClose: true, alignTop: true, themed: true, onClose: () => openCategoryForm(id, true) });
   const inp = $("#pickSearch");
   const paint = () => {
-    const f = filterBySearch(all, inp.value, (p) => p.name);
+    const f = filterBySearch(all, inp.value, productSearchText);
     $("#pickList").innerHTML = f.map((p) => {
       const dp = productDisplayParts(p);
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : "";
       const hasCat = !!(p.categoryId && cmap[p.categoryId]);
       const catLabel = hasCat ? cmap[p.categoryId].name : "Senza reparto";
-      return `<button type="button" class="pick-opt" data-pick="${p.id}" ${p.categoryId === id ? "disabled" : ""}><span class="item-top-row"><strong class="row-name">${esc(dp.title)}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}<span class="pick-sub${hasCat ? "" : " it"}">${esc(catLabel)}</span></button>`;
+      return `<button type="button" class="pick-opt" data-pick="${p.id}" ${p.categoryId === id ? "disabled" : ""}><span class="item-top-row"><strong class="row-name">${dp.titleHtml}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}<span class="pick-sub${hasCat ? "" : " it"}">${esc(catLabel)}</span></button>`;
     }).join("") || '<div class="empty">Nessun articolo trovato.</div>';
     $("#pickList").querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", async () => {
       const pr = all.find((x) => x.id === b.dataset.pick);
@@ -6391,12 +6416,12 @@ async function openCategoryForm(id, keep = false) {
   ms.value = catDetailQuery;
   const paint = () => {
     catDetailQuery = ms.value;
-    const f = filterBySearch(all, ms.value, (p) => p.name);
+    const f = filterBySearch(all, ms.value, productSearchText);
     $("#catMembersCount").textContent = "(" + all.length + ")";
     list.innerHTML = f.map((p) => {
       const dp = productDisplayParts(p);
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : "";
-      return swipeWrap(`<div class="list-row compact cat-member-row" data-cat-rm="${p.id}"><button type="button" class="row-button" data-cat-open="${p.id}"><span class="item-top-row"><span class="row-name">${esc(dp.title)}</span><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</button></div>`, "swipe-compact");
+      return swipeWrap(`<div class="list-row compact cat-member-row" data-cat-rm="${p.id}"><button type="button" class="row-button" data-cat-open="${p.id}"><span class="item-top-row"><span class="row-name">${dp.titleHtml}</span><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</button></div>`, "swipe-compact");
     }).join("") || `<div class="empty">${all.length ? "Nessun articolo trovato." : "Nessun articolo ancora abbinato."}</div>`;
     list.querySelectorAll("[data-cat-open]").forEach((b) => b.addEventListener("click", () => openProductForm(b.dataset.catOpen, "categoryDetail", id)));
     bindSwipeDelete(list, "[data-cat-rm]", async (row) => {
