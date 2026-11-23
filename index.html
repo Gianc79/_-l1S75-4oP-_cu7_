@@ -4965,7 +4965,7 @@ function packQtyPlaceholderFor(packUnit) {
   if (packUnit === "cm") return "Es. 30";
   return "Es. 0,5";
 }
-async function openProductForm(productId, returnPage = "products", returnCategoryId = null, returnFn = null) {
+async function openProductForm(productId, returnPage = "products", returnCategoryId = null, returnFn = null, keepCategoryId = null) {
   const [p, cats, ss, assoc, prices, allProducts] = await Promise.all([
     productId ? getOne("products", productId) : Promise.resolve(null),
     allCategoriesSorted(),
@@ -4995,7 +4995,8 @@ async function openProductForm(productId, returnPage = "products", returnCategor
       filterPreselectedStore = candidateStore;
     }
   }
-  const selectedCategory = p?.categoryId || returnCategoryId || filterPreselectedCat || "";
+  const validKeepCat = keepCategoryId && cats.some((c) => c.id === keepCategoryId) ? keepCategoryId : "";
+  const selectedCategory = p?.categoryId || validKeepCat || returnCategoryId || filterPreselectedCat || "";
   const initFields = extractProductFields(p);
   const initialPackaging = initFields.packaging;
   const initialPackUnit = initFields.packUnit;
@@ -5667,26 +5668,29 @@ async function openProductForm(productId, returnPage = "products", returnCategor
       addQtyBox?.classList.remove("editing");
     });
   }
+  let currentSelectedCat = selectedCategory;
   $("#prodCategory").addEventListener("change", () => {
+    const val = $("#prodCategory").value;
+    if (val !== "__new__") currentSelectedCat = val;
     $("#reqCat")?.classList.remove("err");
     $("#prodCategoryTrigger")?.classList.remove("invalid");
   });
   $("#prodCategory").addEventListener("change", async (e) => {
     if (e.target.value === "__new__") {
-      setDropdownValue("prodCategory", selectedCategory);
+      setDropdownValue("prodCategory", currentSelectedCat);
       const draft = {
         itemName: itemNameInp?.value ?? "",
         brand: brandInp?.value ?? "",
         packaging: packInp?.value || "confezione",
         packUnit: packUnitInp?.value || "kg",
         packQty: packInp?.value === "sfuso" ? lastConfezioneQty : (packQtyInp?.value ?? ""),
-        categoryId: selectedCategory,
+        categoryId: currentSelectedCat,
         addToList: !!$("#addNewProdToList")?.checked,
         addQty: $("#addNewProdQty")?.value ?? "",
         stores: [...$("#modalRoot").querySelectorAll("[data-store-check]")].map((cb) => ({ id: cb.dataset.storeCheck, checked: cb.checked, price: $("#price-" + cb.dataset.storeCheck)?.value ?? "" }))
       };
       const reopenProduct = async (cat) => {
-        await openProductForm(productId, returnPage, returnCategoryId, returnFn);
+        await openProductForm(productId, returnPage, returnCategoryId, returnFn, cat?.id || draft.categoryId || null);
         const ni = $("#prodItemName"), bi = $("#prodBrand");
         if (ni) {
           ni.value = draft.itemName;
@@ -6020,7 +6024,7 @@ async function saveProductForm(productId, returnPage, returnCategoryId = null) {
       await renderCategories();
       showToast("Articolo salvato");
     } else if (!productId && returnPage === "products") {
-      await openProductForm(null, "products");
+      await openProductForm(null, "products", null, null, categoryId);
       showToast(addedMsg);
     } else {
       page = "products";
