@@ -1597,3 +1597,16 @@ input[type=search].search-input:placeholder-shown,
 .new-prod-discount-row>label{white-space:nowrap}
 .new-prod-discount-row .price-eur{font-size:13.5px;white-space:nowrap}
 @media(max-width:355px){.new-prod-discount-row .name-box{width:116px}}
+/* v. 1.70 */
+/* Widget FILTRA PER: pulsante quadrato solo icona (38x38px, stessa altezza delle caselle filtro) */
+.prod-filters-box:not(.prod-filters-split) .prod-filters-head{min-height:0;margin-bottom:6px}
+.prod-filters-grid.is-single{grid-template-columns:minmax(0,1fr) 38px;align-items:center;gap:8px}
+.prod-filters-box .filter-clear{width:38px;min-width:38px;height:38px;padding:0;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;gap:0;color:#b42318;background:linear-gradient(180deg,#ffffff 0%,#feeceb 100%);border:1.5px solid #e5b4b0;box-shadow:inset 0 1px 0 #fff,0 2px 0 #d59e99,0 3px 6px rgba(180,35,24,.09);flex:0 0 38px}
+.prod-filters-box .filter-clear svg{width:22px;height:22px;flex:0 0 22px;display:block}
+.prod-filters-box .filter-clear:active:not(:disabled){transform:translateY(1.5px);box-shadow:0 1px 0 #d59e99}
+.prod-filters-box .filter-clear:disabled,.prod-filters-box .filter-clear.dim{opacity:.42;filter:grayscale(1);color:#5b6b7d;background:rgba(255,255,255,.55);border-color:#c2d4e4;box-shadow:none}
+/* Articoli e Finestra Aggiungi articolo alla lista: icona quadrata 38x38 allineata a "Tutti i reparti" e a sx con "FILTRA PER" */
+.prod-filters-box.prod-filters-split .prod-filters-head{justify-items:start}
+.prod-filters-box.prod-filters-split .prod-filters-title{padding-left:0}
+.prod-filters-box.prod-filters-split .prod-filters-head .filter-clear{width:38px;min-width:38px;height:38px;padding:0;justify-self:start;align-self:center}
+
