@@ -1,18 +1,19 @@
 // Archivio spese (scontrini immutabili), aggiunte/detrazioni cassa e riepilogo risparmio
 import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
-import { $, assignUnit, esc, eurosFromInput, fmtQtyUnit, money, moneyPerUnit, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
+import { $, assignUnit, esc, eurosFromInput, fmtQtyUnit, money, moneyPerUnit, norm, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
 import { currentSavedListId } from "./history.js";
 import { openListMenu } from "./shoppingList.js";
 
 const RECEIPT_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 2.5h15v19l-2.5-1.7-2.5 1.7-2.5-1.7-2.5 1.7-2.5-1.7-2.5 1.7v-19Z" fill="#ffffff" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><rect x="4.5" y="2.5" width="15" height="4.2" fill="#2f6db5"/><path d="M8 10h8M8 13.3h6.5M8 16.5h4.2" stroke="#174f86" stroke-width="1.55" stroke-linecap="round"/><circle cx="17.2" cy="16.2" r="3.6" fill="#159447" stroke="#ffffff" stroke-width="1.2"/><path d="M15.7 16.2l1 1 2.1-2.2" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SCONTRINO_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.6 7.3 4.2 9.6 2.6 12 4.2 14.4 2.6 16.7 4.2 19 2.6v18.8l-2.3-1.6-2.3 1.6L12 19.8l-2.4 1.6-2.3-1.6L5 21.4V2.6Z" fill="#ffffff" stroke="#123e6d" stroke-width="1.45" stroke-linejoin="round"/><path d="M8 8.2h5.2M15.2 8.2h.8M8 11.4h4.4M14.4 11.4h1.6M8 14.6h8" stroke="#174f86" stroke-width="1.45" stroke-linecap="round"/><path d="M8 17.3h3.2M13.6 17.3h2.4" stroke="#159447" stroke-width="1.75" stroke-linecap="round"/></svg>';
 const CALENDAR_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" class="archive-cal-svg"><rect x="2.75" y="4.75" width="18.5" height="16.5" rx="2.6" fill="#ffffff" stroke="#174f86" stroke-width="1.5"/><path d="M2.75 7.35A2.6 2.6 0 0 1 5.35 4.75h13.3a2.6 2.6 0 0 1 2.6 2.6V9.6H2.75V7.35Z" fill="#d93829" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.6 2.4v4M16.4 2.4v4" stroke="#174f86" stroke-width="2" stroke-linecap="round"/><rect x="6" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="10.65" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="15.3" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="6" y="16" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="10.65" y="16" width="2.7" height="2.4" rx=".5" fill="#d93829"/><rect x="15.3" y="16" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/></svg>';
 
 const ADJUSTMENT_PRESETS = {
-  add: ["Sacchetti", "Contributo premi", "Arrotondamento"],
-  deduct: ["Buono fedelt\xE0", "Sconto generale", "Buoni pasto", "Arrotondamento"]
+  add: ["Sacchetti BIO", "Borse", "Cauzioni", "Contributo premi", "Arrotondamento", "Consegna"],
+  deduct: ["Buoni fedelt\xE0", "Buoni pasto", "Sconto generale", "Resi", "Arrotondamento"]
 };
 
 function sanitizeReceiptAmountInput(raw) {
@@ -312,12 +313,14 @@ export async function openArchiveWindow(opts = {}) {
       : (storeHasColors(info) ? storeChipHtml(info) : "");
     return { id: name, label: name, html, disabled: false };
   });
-  const allStoresLabel = `Tutti i supermercati (${receipts.length})`;
+  const allStoresLabel = "Tutti i supermercati";
 
   const filterBarHtml = receipts.length ? `
-    <div class="archive-filter-bar">
-      ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey })}
-      <input id="archiveSearchInput" type="search" class="search-input" placeholder="Cerca articolo\u2026" value="${esc(searchQuery)}" autocomplete="off" aria-label="Cerca articolo nell'archivio spese">
+    <div class="archive-filter-sticky">
+      <div class="archive-filter-bar">
+        ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey })}
+        <input id="archiveSearchInput" type="search" class="search-input" placeholder="Cerca articolo\u2026" value="${esc(searchQuery)}" autocomplete="off" aria-label="Cerca articolo nell'archivio spese">
+      </div>
     </div>` : "";
 
   const body = `<div class="saved-lists-sheet archive-sheet">
@@ -360,13 +363,24 @@ export async function openArchiveWindow(opts = {}) {
   const container = $("#archivedReceiptsContainer");
   const countBadge = $("#archiveCountBadge");
   const searchInp = $("#archiveSearchInput");
+  const delAllBtn = $("#delAllArchivedBtn");
+
+  const getStoreFilteredReceipts = () => receipts.filter((r) => {
+    const storeLabel = r.storeNameSnapshot || "Senza supermercato";
+    return selectedStoreKey === "all" || storeLabel === selectedStoreKey;
+  });
 
   const paintReceipts = () => {
     const q = searchNorm(searchQuery);
-    const storeFiltered = receipts.filter((r) => {
-      const storeLabel = r.storeNameSnapshot || "Senza supermercato";
-      return selectedStoreKey === "all" || storeLabel === selectedStoreKey;
-    });
+    const storeFiltered = getStoreFilteredReceipts();
+    if (delAllBtn) {
+      delAllBtn.disabled = storeFiltered.length === 0;
+      const delLabel = selectedStoreKey === "all"
+        ? "Elimina tutte le spese archiviate"
+        : `Elimina le spese archiviate di ${selectedStoreKey}`;
+      delAllBtn.title = delLabel;
+      delAllBtn.setAttribute("aria-label", delLabel);
+    }
 
     if (q) {
       const tokens = q.split(" ").filter(Boolean);
@@ -489,19 +503,35 @@ export async function openArchiveWindow(opts = {}) {
   }
 
   $("#delAllArchivedBtn")?.addEventListener("click", async () => {
-    if (!receipts.length) return;
+    const targets = getStoreFilteredReceipts();
+    if (!targets.length) return;
+    const isAll = selectedStoreKey === "all";
+    const msg = isAll
+      ? (targets.length === 1
+        ? "L'unico scontrino archiviato verr\xE0 eliminato definitivamente. Procedere comunque?"
+        : `Tutti i ${targets.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`)
+      : (targets.length === 1
+        ? `Lo scontrino archiviato di <strong>${esc(selectedStoreKey)}</strong> verr\xE0 eliminato definitivamente. Procedere comunque?`
+        : `Tutti i ${targets.length} scontrini archiviati di <strong>${esc(selectedStoreKey)}</strong> verranno eliminati definitivamente. Procedere comunque?`);
     const yes = await confirmDialog(
       "Elimina archivio spese",
-      `Tutti i ${receipts.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`,
-      "Elimina tutti",
-      { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow() }
+      msg,
+      targets.length === 1 ? "Elimina" : "Elimina tutti",
+      { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow({ storeFilter: selectedStoreKey, searchQuery }) }
     );
     if (!yes) return;
     const tx = state.db.transaction("archivedReceipts", "readwrite");
-    tx.objectStore("archivedReceipts").clear();
+    const os = tx.objectStore("archivedReceipts");
+    if (isAll) {
+      os.clear();
+    } else {
+      for (const r of targets) os.delete(r.id);
+    }
     await txDone(tx);
-    await openArchiveWindow();
-    showToast("Archivio spese svuotato");
+    await openArchiveWindow({ storeFilter: "all", searchQuery: isAll ? "" : searchQuery });
+    showToast(isAll
+      ? "Archivio spese svuotato"
+      : (targets.length === 1 ? `Scontrino di ${selectedStoreKey} eliminato` : `Spese di ${selectedStoreKey} eliminate`));
   });
 }
 
@@ -602,14 +632,16 @@ export async function openArchiveCurrentListModal() {
 
     <div class="archive-card" id="archiveScopeCard">
       <div class="archive-card-title">Articoli da includere</div>
-      <label class="radio-opt archive-radio-opt" id="scopeAllOpt">
-        <input type="radio" name="archiveScope" value="all" checked>
-        <span><strong>Includi tutti gli articoli</strong></span>
-      </label>
-      <label class="radio-opt archive-radio-opt" id="scopeCheckedOpt">
-        <input type="radio" name="archiveScope" value="checked">
-        <span><strong>Solo articoli spuntati</strong></span>
-      </label>
+      <div class="archive-scope-options">
+        <label class="radio-opt archive-radio-opt" id="scopeAllOpt">
+          <input type="radio" name="archiveScope" value="all" checked>
+          <span class="archive-radio-label">Includi tutti gli articoli</span>
+        </label>
+        <label class="radio-opt archive-radio-opt" id="scopeCheckedOpt">
+          <input type="radio" name="archiveScope" value="checked">
+          <span class="archive-radio-label">Solo articoli spuntati</span>
+        </label>
+      </div>
     </div>
 
     <div id="archiveMissingBox" class="archive-card archive-warn-card" hidden></div>
@@ -1014,25 +1046,60 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
 
   const itemsRowsHtml = items.map((it) => renderReceiptItemRowHtml(it)).join("");
 
-  const adjCardRowsHtml = adjustments.map((adj) => {
-    const isAdd = adj.type === "add";
-    const sign = isAdd ? "+" : "\u2212";
-    return swipeWrap(`<div class="receipt-adj-item-compact ${isAdd ? "is-add" : "is-deduct"}" data-adj-card-row="${esc(adj.id)}">
-      <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
-      <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(adj.amountMinor)}</strong>
-    </div>`, "swipe-receipt-adj");
-  }).join("");
+  const renderAdjCardRowsHtml = (type) => adjustments
+    .filter((adj) => adj.type === type)
+    .map((adj) => {
+      const isAdd = adj.type === "add";
+      const sign = isAdd ? "+" : "\u2212";
+      const amt = Math.max(0, Number(adj.amountMinor) || 0);
+      return swipeWrap(`<div class="receipt-adj-item-compact ${isAdd ? "is-add" : "is-deduct"}" data-adj-card-row="${esc(adj.id)}">
+        <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
+        <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(amt)}</strong>
+      </div>`, "swipe-receipt-adj");
+    }).join("");
 
-  const adjReceiptRowsHtml = adjustments.map((adj) => {
-    const isAdd = adj.type === "add";
-    const sign = isAdd ? "+" : "\u2212";
-    return `<div class="receipt-item-row receipt-adj-item-row receipt-adj-readonly ${isAdd ? "is-add" : "is-deduct"}">
+  const adjCardRowsHtml = renderAdjCardRowsHtml(adjType);
+
+  const nonRoundingMap = new Map();
+  let hasRounding = false;
+  let roundingNetMinor = 0;
+  for (const adj of adjustments) {
+    const amt = Math.max(0, Number(adj.amountMinor) || 0);
+    const nLabel = norm(adj.label);
+    if (nLabel === "arrotondamento") {
+      hasRounding = true;
+      roundingNetMinor += adj.type === "add" ? amt : -amt;
+    } else {
+      const key = `${adj.type}|${nLabel}`;
+      const existing = nonRoundingMap.get(key);
+      if (existing) {
+        existing.amountMinor += amt;
+      } else {
+        nonRoundingMap.set(key, { kind: adj.type, label: adj.label, amountMinor: amt });
+      }
+    }
+  }
+  const receiptAdjDisplayRows = [...nonRoundingMap.values()];
+  if (hasRounding) {
+    receiptAdjDisplayRows.push({
+      kind: roundingNetMinor > 0 ? "add" : (roundingNetMinor < 0 ? "deduct" : "neutral"),
+      label: "Arrotondamento",
+      amountMinor: Math.abs(roundingNetMinor),
+      isRounding: true
+    });
+  }
+
+  const adjReceiptRowsHtml = receiptAdjDisplayRows.map((row) => {
+    const cls = row.kind === "add" ? "is-add" : (row.kind === "deduct" ? "is-deduct" : "is-neutral");
+    const sign = row.kind === "add" ? "+" : (row.kind === "deduct" ? "\u2212" : "");
+    const catText = row.kind === "add" ? "Aggiunta" : (row.kind === "deduct" ? "Detrazione" : "Compensato");
+    return `<div class="receipt-item-row receipt-adj-item-row receipt-adj-readonly ${cls}">
       <div class="receipt-item-top">
-        <span class="receipt-item-name">${esc(adj.label)}</span>
+        <span class="receipt-item-name">${esc(row.label)}</span>
       </div>
       <div class="receipt-item-bottom">
-        <span class="receipt-item-cat">${isAdd ? "Aggiunta" : "Detrazione"}</span>
-        <strong class="receipt-item-total ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(adj.amountMinor)}</strong>
+        <span class="receipt-item-cat">${catText}</span>
+        <strong class="receipt-item-total ${cls}">${sign}${money(row.amountMinor)}</strong>
       </div>
     </div>`;
   }).join("");
@@ -1042,15 +1109,17 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   ).join("");
 
   const body = `<div class="saved-lists-sheet receipt-detail-sheet">
-    <div class="receipt-hero-card">
-      <div class="receipt-hero-head">
-        <div class="receipt-hero-store">${receiptStoreChip(currentReceipt, "store-chip-heading")}</div>
-        <span class="receipt-hero-date">${dt}</span>
-      </div>
-      <div class="name-box receipt-hero-note-box">
-        <input id="receiptNoteInput" type="text" maxlength="20" value="${esc(currentReceipt.note || "")}" placeholder="Nome spesa" autocomplete="off" aria-label="Nome spesa">
-        <button type="button" class="name-no" id="receiptNoteNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
-        <button type="button" class="name-ok" id="receiptNoteOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button>
+    <div class="receipt-hero-sticky">
+      <div class="receipt-hero-card">
+        <div class="receipt-hero-head">
+          <div class="receipt-hero-store">${receiptStoreChip(currentReceipt, "store-chip-heading")}</div>
+          <span class="receipt-hero-date">${dt}</span>
+        </div>
+        <div class="name-box receipt-hero-note-box">
+          <input id="receiptNoteInput" type="text" maxlength="20" value="${esc(currentReceipt.note || "")}" placeholder="Nome spesa" autocomplete="off" aria-label="Nome spesa">
+          <button type="button" class="name-no" id="receiptNoteNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
+          <button type="button" class="name-ok" id="receiptNoteOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button>
+        </div>
       </div>
     </div>
 
@@ -1069,6 +1138,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
           <div class="receipt-presets" id="receiptAdjPresets">${renderPresetsHtml(adjType)}</div>
           <div class="receipt-adj-inputs">
             <div class="receipt-adj-amt-field">
+              <span class="receipt-adj-sign ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="adjSignIndicator" aria-hidden="true">${adjType === "deduct" ? "\u2212" : "+"}</span>
               <div class="name-box receipt-adj-amt-box">
                 <input type="text" inputmode="decimal" enterkeyhint="done" id="adjAmountInput" maxlength="7" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Importo in euro">
                 <button type="button" class="name-no" id="adjAmountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
@@ -1078,16 +1148,17 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
             </div>
             <button type="button" class="btn btn-primary btn-small" id="addAdjBtn">Aggiungi</button>
           </div>
-          ${adjCardRowsHtml ? `<div class="receipt-adj-records" id="receiptAdjRecords">${adjCardRowsHtml}</div>` : ""}
+          <div class="receipt-adj-records" id="receiptAdjRecords"${adjCardRowsHtml ? "" : " hidden"}>${adjCardRowsHtml}</div>
         </div>
       </div>
     </div>
 
     <div class="saved-list-section receipt-items-section">
-      <div class="saved-list-head">
+      <div class="saved-list-head receipt-scontrino-banner">
         <div class="saved-list-head-left">
+          <span class="receipt-scontrino-icon" aria-hidden="true">${SCONTRINO_ICON_SVG}</span>
           <span class="saved-list-title">Scontrino</span>
-          <span class="title-count-badge">${items.length + adjustments.length}</span>
+          <span class="title-count-badge">${items.length + receiptAdjDisplayRows.length}</span>
         </div>
         <strong class="receipt-scontrino-total">${money(t.finalTotalMinor)}</strong>
       </div>
@@ -1095,7 +1166,9 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     </div>
   </div>`;
 
-  modal("Dettaglio scontrino", body, [], {
+  modal("Dettaglio scontrino", body, [
+    { label: "Chiudi", class: "btn-plain", action: () => { state.currentModal = null; state.currentModalKeep = false; openArchiveWindow(archiveOpts); } }
+  ], {
     closeButton: true,
     backdropClose: false,
     alignTop: true,
@@ -1168,6 +1241,49 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   const amtBox = amtInp?.closest(".name-box");
   const presetsWrap = $("#receiptAdjPresets");
   const adjRecordsEl = $("#receiptAdjRecords");
+  const adjSignEl = $("#adjSignIndicator");
+
+  const bindAdjSwipeDelete = () => {
+    if (!adjRecordsEl || adjRecordsEl.hidden) return;
+    bindSwipeDelete(adjRecordsEl, "[data-adj-card-row]", async (row) => {
+      const adjId = row.dataset.adjCardRow;
+      const removedIdx = adjustments.findIndex((a) => a.id === adjId);
+      if (removedIdx === -1) return false;
+      const removedAdj = adjustments[removedIdx];
+      const updated = {
+        ...currentReceipt,
+        adjustments: adjustments.filter((a) => a.id !== adjId),
+        updatedAt: now()
+      };
+      await putOne("archivedReceipts", updated);
+      const keepScroll = modalEl ? modalEl.scrollTop : 0;
+      state.currentModal = null;
+      state.currentModalKeep = false;
+      await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
+      showUndoToast("Voce rimossa", async () => {
+        const latest = await getOne("archivedReceipts", currentReceipt.id);
+        if (!latest) return;
+        const curAdjs = Array.isArray(latest.adjustments) ? [...latest.adjustments] : [];
+        if (!curAdjs.some((a) => a.id === removedAdj.id)) {
+          const insertAt = Math.max(0, Math.min(removedIdx, curAdjs.length));
+          curAdjs.splice(insertAt, 0, removedAdj);
+          await putOne("archivedReceipts", { ...latest, adjustments: curAdjs, updatedAt: now() });
+        }
+        if ($("#receiptItemsList")) {
+          const curModal = $("#modalRoot .modal");
+          const curScroll = curModal ? curModal.scrollTop : keepScroll;
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: curScroll });
+        } else if ($("#archivedReceiptsContainer")) {
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          await openArchiveWindow(archiveOpts);
+        }
+      });
+    });
+  };
+  bindAdjSwipeDelete();
 
   const bindPresetChips = () => {
     presetsWrap?.querySelectorAll("[data-adj-preset]").forEach((btn) => {
@@ -1191,6 +1307,11 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       selectedPreset = "";
       tabsWrap?.classList.toggle("is-add", adjType === "add");
       tabsWrap?.classList.toggle("is-deduct", adjType === "deduct");
+      if (adjSignEl) {
+        adjSignEl.textContent = adjType === "deduct" ? "\u2212" : "+";
+        adjSignEl.classList.toggle("is-add", adjType === "add");
+        adjSignEl.classList.toggle("is-deduct", adjType === "deduct");
+      }
       root.querySelectorAll("[data-adj-type]").forEach((b) => {
         const isAct = b.dataset.adjType === adjType;
         b.classList.toggle("active", isAct);
@@ -1199,6 +1320,12 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       if (presetsWrap) {
         presetsWrap.innerHTML = renderPresetsHtml(adjType);
         bindPresetChips();
+      }
+      if (adjRecordsEl) {
+        const rowsHtml = renderAdjCardRowsHtml(adjType);
+        adjRecordsEl.innerHTML = rowsHtml;
+        adjRecordsEl.hidden = !rowsHtml;
+        bindAdjSwipeDelete();
       }
     });
   });
@@ -1273,16 +1400,37 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       amtInp?.focus();
       return;
     }
-    const newAdj = {
-      id: uuid(),
-      type: adjType,
-      label,
-      amountMinor,
-      createdAt: now()
-    };
+    const normLabel = norm(label);
+    const matching = adjustments.filter((a) => a.type === adjType && norm(a.label) === normLabel);
+    let nextAdjustments;
+    let wasMerged = false;
+    if (matching.length > 0) {
+      wasMerged = true;
+      const sumMinor = matching.reduce((acc, a) => acc + Math.max(0, Number(a.amountMinor) || 0), 0) + amountMinor;
+      const firstId = matching[0].id;
+      nextAdjustments = [];
+      for (const a of adjustments) {
+        if (a.type === adjType && norm(a.label) === normLabel) {
+          if (a.id === firstId) {
+            nextAdjustments.push({ ...a, label, amountMinor: sumMinor, updatedAt: now() });
+          }
+        } else {
+          nextAdjustments.push(a);
+        }
+      }
+    } else {
+      const newAdj = {
+        id: uuid(),
+        type: adjType,
+        label,
+        amountMinor,
+        createdAt: now()
+      };
+      nextAdjustments = [...adjustments, newAdj];
+    }
     const updated = {
       ...currentReceipt,
-      adjustments: [...adjustments, newAdj],
+      adjustments: nextAdjustments,
       updatedAt: now()
     };
     await putOne("archivedReceipts", updated);
@@ -1291,48 +1439,10 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     state.currentModal = null;
     state.currentModalKeep = false;
     await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
-    showToast(adjType === "add" ? "Aggiunta salvata" : "Detrazione salvata");
+    showToast(wasMerged
+      ? (adjType === "add" ? "Aggiunta aggiornata" : "Detrazione aggiornata")
+      : (adjType === "add" ? "Aggiunta salvata" : "Detrazione salvata"));
   };
 
   $("#addAdjBtn")?.addEventListener("click", commitAdjustment);
-
-  if (adjRecordsEl) {
-    bindSwipeDelete(adjRecordsEl, "[data-adj-card-row]", async (row) => {
-      const adjId = row.dataset.adjCardRow;
-      const removedIdx = adjustments.findIndex((a) => a.id === adjId);
-      if (removedIdx === -1) return false;
-      const removedAdj = adjustments[removedIdx];
-      const updated = {
-        ...currentReceipt,
-        adjustments: adjustments.filter((a) => a.id !== adjId),
-        updatedAt: now()
-      };
-      await putOne("archivedReceipts", updated);
-      const keepScroll = modalEl ? modalEl.scrollTop : 0;
-      state.currentModal = null;
-      state.currentModalKeep = false;
-      await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
-      showUndoToast("Voce rimossa", async () => {
-        const latest = await getOne("archivedReceipts", currentReceipt.id);
-        if (!latest) return;
-        const curAdjs = Array.isArray(latest.adjustments) ? [...latest.adjustments] : [];
-        if (!curAdjs.some((a) => a.id === removedAdj.id)) {
-          const insertAt = Math.max(0, Math.min(removedIdx, curAdjs.length));
-          curAdjs.splice(insertAt, 0, removedAdj);
-          await putOne("archivedReceipts", { ...latest, adjustments: curAdjs, updatedAt: now() });
-        }
-        if ($("#receiptItemsList")) {
-          const curModal = $("#modalRoot .modal");
-          const curScroll = curModal ? curModal.scrollTop : keepScroll;
-          state.currentModal = null;
-          state.currentModalKeep = false;
-          await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: curScroll });
-        } else if ($("#archivedReceiptsContainer")) {
-          state.currentModal = null;
-          state.currentModalKeep = false;
-          await openArchiveWindow(archiveOpts);
-        }
-      });
-    });
-  }
 }

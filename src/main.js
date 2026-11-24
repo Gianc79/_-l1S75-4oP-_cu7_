@@ -1,3 +1,4 @@
+import './styles.css';
 // Router principale, inizializzazione app e blocco orientamento verticale
 import { state } from "./state.js";
 import { APP_VERSION, CART_CELEBRATION_DATA_URI, DB_VERSION } from "./data.js";
