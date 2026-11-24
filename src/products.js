@@ -6,7 +6,7 @@ import { allCategoriesSorted, allProductsSorted, allStoresSorted, categoryMap, g
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, decorateInput, forceUppercaseInput, infoPop, modal, releaseModalKeyboard, selectAllOnFocus, setDropdownValue, showToast, singleFilterHtml, swipeWrap, tipBtn, updateSingleFilterUI, wireCustomDropdown, wireSingleFilter } from "./ui.js";
 import { actuallyAddItem, openAddItem, openNewListItemEditor, renderList } from "./shoppingList.js";
 import { openCategoryForm, openCategoryProductPicker, renderCategories } from "./categories.js";
-import { render } from "./main.js";
+import { render } from "./router.js";
 
 export async function renderProducts() {
   const [products, cats, catList, stores2, assoc] = await Promise.all([

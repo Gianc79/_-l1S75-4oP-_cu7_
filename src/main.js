@@ -3,33 +3,12 @@ import { state } from "./state.js";
 import { APP_VERSION, CART_CELEBRATION_DATA_URI, DB_VERSION } from "./data.js";
 import { $, esc } from "./calculations.js";
 import { activeList, getOne, openDB, putOne } from "./storage.js";
-import { bindToastSwipe, confirmDialog, handleAppBack, isInstalledPwa, setPage, updateNav, updateScrollTopButton, updateStickyHeaderOffset } from "./ui.js";
-import { openAddItem, renderList } from "./shoppingList.js";
-import { exportBackup, importBackup, renderOther } from "./history.js";
-import { renderProducts } from "./products.js";
-import { renderCategories } from "./categories.js";
-import { openStoreDetail, renderStores } from "./stores.js";
+import { bindToastSwipe, confirmDialog, handleAppBack, isInstalledPwa, setPage, updateScrollTopButton, updateStickyHeaderOffset } from "./ui.js";
+import { openAddItem } from "./shoppingList.js";
+import { exportBackup, importBackup } from "./history.js";
+import { render } from "./router.js";
 
-export async function render() {
-  updateNav();
-  $("#listFooter").classList.toggle("hidden", state.page !== "list");
-  document.querySelector(".header-actions").style.visibility = "visible";
-  if (state.page === "list") await renderList();
-  else if (state.page === "products") await renderProducts();
-  else if (state.page === "stores") await renderStores();
-  else if (state.page === "storeDetail") await openStoreDetail(state.manageStoreId);
-  else if (state.page === "categories") await renderCategories();
-  else await renderOther();
-  if (state.pendingScrollTop) {
-    state.pendingScrollTop = false;
-    window.scrollTo({ top: 0, behavior: "auto" });
-  }
-  const _m = $("#appMain");
-  _m.classList.remove("page-in");
-  void _m.offsetWidth;
-  _m.classList.add("page-in");
-  updateScrollTopButton();
-}
+export { render };
 
 export async function init() {
   const preloadCartImg = new Image();
@@ -51,16 +30,20 @@ export async function init() {
     $("#appMain").innerHTML = `<div class="empty"><strong>Impossibile aprire l'archivio locale.</strong><br>${esc(e.message)}<br>Prova ad aprire l'app con un browser aggiornato.</div>`;
     return;
   }
-  const savedFilters = localStorage.getItem("spesaSuMisura.selectedStores");
-  if (savedFilters) {
-    try {
-      state.selectedStores = JSON.parse(savedFilters);
-    } catch (e) {
-      state.selectedStores = ["all"];
+  try {
+    const savedFilters = localStorage.getItem("spesaSuMisura.selectedStores");
+    if (savedFilters) {
+      try {
+        state.selectedStores = JSON.parse(savedFilters);
+      } catch (e) {
+        state.selectedStores = ["all"];
+      }
+    } else {
+      const oldFilter = localStorage.getItem("spesaSuMisura.selectedStore");
+      state.selectedStores = oldFilter && oldFilter !== "all" ? [oldFilter] : ["all"];
     }
-  } else {
-    const oldFilter = localStorage.getItem("spesaSuMisura.selectedStore");
-    state.selectedStores = oldFilter && oldFilter !== "all" ? [oldFilter] : ["all"];
+  } catch (_) {
+    state.selectedStores = ["all"];
   }
   document.querySelectorAll(".nav-btn").forEach((b) => b.addEventListener("click", () => {
     state.productsView.q = "";
@@ -241,7 +224,15 @@ export async function init() {
   handleAppBack();
   const bt = $("#brandTitle");
   if (bt) bt.innerHTML = `SpesaSuMisura <span class="small muted">v. ${APP_VERSION}</span>`;
-  await render();
+  try {
+    await render();
+  } catch (e) {
+    console.error("Errore durante il rendering iniziale:", e);
+    const mainEl = $("#appMain");
+    if (mainEl) {
+      mainEl.innerHTML = `<div class="empty"><strong>Impossibile avviare l'interfaccia.</strong><br>${esc(e?.message || String(e))}</div>`;
+    }
+  }
 }
 
 export function setupPortraitLock() {
@@ -280,8 +271,14 @@ export function setupPortraitLock() {
 }
 
 export function initApp() {
-  init();
+  setupPortraitLock();
+  return init();
 }
 
-setupPortraitLock();
-init();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    initApp();
+  }, { once: true });
+} else {
+  initApp();
+}

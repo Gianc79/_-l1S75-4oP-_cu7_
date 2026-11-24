@@ -5,7 +5,7 @@ import { $, canonicalSavedItem, esc, norm, now, uuid } from "./calculations.js";
 import { activeItems, activeList, allData, delOne, getAll, getOne, putOne, replaceItems, settings, snapshotItems, txDone } from "./storage.js";
 import { bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, showToast, showUndoToast, swipeWrap } from "./ui.js";
 import { openListMenu, renderList } from "./shoppingList.js";
-import { render } from "./main.js";
+import { render } from "./router.js";
 
 export async function currentSavedListId() {
   const cur = await settings(), id = cur.currentSavedListId;

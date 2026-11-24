@@ -2,11 +2,15 @@
 import { state } from "./state.js";
 import { SVG_CHK, SVG_TIP_BULB, SVG_X, SWIPE_TRASH_SVG } from "./data.js";
 import { $, applyDropdownSearch, esc, filterBySearch, fitStoreChipLabels, searchNorm, searchRank } from "./calculations.js";
-import { render } from "./main.js";
+import { render } from "./router.js";
 
-export const tipBtn = (targetId, label = "Suggerimento") => `<button type="button" class="tip-btn" data-tip-target="${esc(targetId)}" aria-label="${esc(label)}" title="${esc(label)}">${SVG_TIP_BULB}</button>`;
+export function tipBtn(targetId, label = "Suggerimento") {
+  return `<button type="button" class="tip-btn" data-tip-target="${esc(targetId)}" aria-label="${esc(label)}" title="${esc(label)}">${SVG_TIP_BULB}</button>`;
+}
 
-export const infoPop = (t) => `<div class="info-pop" id="infoPop" hidden>${t}</div>`;
+export function infoPop(t) {
+  return `<div class="info-pop" id="infoPop" hidden>${t}</div>`;
+}
 
 export function selectAllOnFocus(inp) {
   if (!inp || inp.dataset.selectAllBound) return;
@@ -76,17 +80,17 @@ export function bindSwipeDelete(root, rowSelector, onDelete) {
       if (row.dataset.swipeDeleting === "1") return;
       const startX = e.clientX, startY = e.clientY;
       let velX = startX, velT = performance.now();
-      let state = "pending", offset = 0;
+      let swipeState = "pending", offset = 0;
       const onMove = (ev) => {
         const dx = ev.clientX - startX, dy = ev.clientY - startY;
-        if (state === "pending") {
+        if (swipeState === "pending") {
           if ((Math.abs(dy) > 9 && Math.abs(dy) >= Math.abs(dx)) || dx < -10) {
-            state = "cancel";
+            swipeState = "cancel";
             cleanup();
             return;
           }
           if (dx > 10 && dx > Math.abs(dy) * 1.25) {
-            state = "swiping";
+            swipeState = "swiping";
             row.dataset.swiping = "1";
             row.dispatchEvent(new CustomEvent("swipestart", { bubbles: true }));
             wrap.classList.add("swiping");
@@ -95,7 +99,7 @@ export function bindSwipeDelete(root, rowSelector, onDelete) {
             return;
           }
         }
-        if (state === "swiping") {
+        if (swipeState === "swiping") {
           if (ev.cancelable) ev.preventDefault();
           offset = Math.max(0, dx);
           const nowT = performance.now();
@@ -114,7 +118,7 @@ export function bindSwipeDelete(root, rowSelector, onDelete) {
       };
       const onUp = (ev) => {
         cleanup();
-        if (state !== "swiping") return;
+        if (swipeState !== "swiping") return;
         const suppress = (ce) => { ce.preventDefault(); ce.stopPropagation(); };
         row.addEventListener("click", suppress, true);
         setTimeout(() => row.removeEventListener("click", suppress, true), 350);
@@ -209,18 +213,18 @@ export function bindToastSwipe() {
     const pid = e.pointerId;
     const startX = e.clientX, startY = e.clientY;
     let velX = startX, velT = performance.now();
-    let state = "pending", offset = 0;
+    let swipeState = "pending", offset = 0;
     const onMove = (ev) => {
       if (ev.pointerId !== pid) return;
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      if (state === "pending") {
+      if (swipeState === "pending") {
         if ((Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx) * 1.4) || dx < -12) {
-          state = "cancel";
+          swipeState = "cancel";
           cleanup();
           return;
         }
         if (dx > 3 && dx >= Math.abs(dy) * 0.75) {
-          state = "swiping";
+          swipeState = "swiping";
           root.dataset.swiping = "1";
           clearTimeout(state.toastTimer);
           root.style.transition = "none";
@@ -229,7 +233,7 @@ export function bindToastSwipe() {
           return;
         }
       }
-      if (state === "swiping") {
+      if (swipeState === "swiping") {
         if (ev.cancelable) ev.preventDefault();
         offset = Math.max(0, dx);
         const nowT = performance.now();
@@ -246,7 +250,7 @@ export function bindToastSwipe() {
       if (ev.pointerId !== pid) return;
       cleanup();
       try { if (root.hasPointerCapture?.(pid)) root.releasePointerCapture(pid); } catch (_) {}
-      if (state !== "swiping") return;
+      if (swipeState !== "swiping") return;
       const suppress = (ce) => { ce.preventDefault(); ce.stopPropagation(); };
       root.addEventListener("click", suppress, true);
       setTimeout(() => root.removeEventListener("click", suppress, true), 300);
@@ -628,38 +632,38 @@ export function modal(title, body, buttons = [], opts = {}) {
       return;
     }
     cancelScrollAnim();
-    const state = { el, pos: cur, vel: 0, to: clamped, smoothTime, lastTime: performance.now(), rafId: 0, onDone: sOpts.onDone || null };
-    scrollAnim = state;
+    const animState = { el, pos: cur, vel: 0, to: clamped, smoothTime, lastTime: performance.now(), rafId: 0, onDone: sOpts.onDone || null };
+    scrollAnim = animState;
     const step = (now) => {
-      if (scrollAnim !== state) return;
-      const dt = Math.min(0.05, Math.max(0.001, (now - state.lastTime) / 1000));
-      state.lastTime = now;
-      const dynMax = Math.max(0, state.el.scrollHeight - state.el.clientHeight);
-      const target = Math.max(0, Math.min(dynMax, state.to));
-      const curPos = state.pos;
-      const omega = 2 / state.smoothTime;
+      if (scrollAnim !== animState) return;
+      const dt = Math.min(0.05, Math.max(0.001, (now - animState.lastTime) / 1000));
+      animState.lastTime = now;
+      const dynMax = Math.max(0, animState.el.scrollHeight - animState.el.clientHeight);
+      const target = Math.max(0, Math.min(dynMax, animState.to));
+      const curPos = animState.pos;
+      const omega = 2 / animState.smoothTime;
       const x = omega * dt;
       const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
       const change = curPos - target;
-      const temp = (state.vel + omega * change) * dt;
-      state.vel = (state.vel - omega * temp) * exp;
+      const temp = (animState.vel + omega * change) * dt;
+      animState.vel = (animState.vel - omega * temp) * exp;
       let nextPos = target + (change + temp) * exp;
       if ((target - curPos > 0) === (nextPos > target)) {
         nextPos = target;
-        state.vel = 0;
+        animState.vel = 0;
       }
-      state.pos = nextPos;
-      state.el.scrollTop = nextPos;
-      if (Math.abs(target - nextPos) < 0.6 && Math.abs(state.vel) < 12) {
-        state.el.scrollTop = target;
-        const done = state.onDone;
+      animState.pos = nextPos;
+      animState.el.scrollTop = nextPos;
+      if (Math.abs(target - nextPos) < 0.6 && Math.abs(animState.vel) < 12) {
+        animState.el.scrollTop = target;
+        const done = animState.onDone;
         scrollAnim = null;
         if (done) done();
       } else {
-        state.rafId = requestAnimationFrame(step);
+        animState.rafId = requestAnimationFrame(step);
       }
     };
-    state.rafId = requestAnimationFrame(step);
+    animState.rafId = requestAnimationFrame(step);
   };
 
   const getScrollContainerFor = (el) => el?.closest(".modal-scroll-body") || modalEl;
@@ -1162,20 +1166,24 @@ export function isInstalledPwa() {
     window.matchMedia?.("(display-mode: standalone)")?.matches ||
     window.matchMedia?.("(display-mode: fullscreen)")?.matches ||
     window.matchMedia?.("(display-mode: minimal-ui)")?.matches ||
-    window.navigator.standalone === true
+    window.navigator?.standalone === true
   );
 }
 
 export function handleAppBack() {
   if (isInstalledPwa()) return;
-  history.pushState({ spesaSuMisuraBackGuard: true }, "");
+  try {
+    history.pushState({ spesaSuMisuraBackGuard: true }, "");
+  } catch (_) {}
   window.addEventListener("popstate", async () => {
     if ($("#modalRoot .modal-backdrop:not(.modal-closing) .modal")) closeModal();
     else if (state.pageStack.length) {
       const previous = state.pageStack.pop();
       setPage(previous, { remember: false });
     } else return;
-    history.pushState({ spesaSuMisuraBackGuard: true }, "");
+    try {
+      history.pushState({ spesaSuMisuraBackGuard: true }, "");
+    } catch (_) {}
   });
 }
 
