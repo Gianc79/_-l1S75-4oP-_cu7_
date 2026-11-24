@@ -487,13 +487,11 @@ export async function saveEditedListPrices(productId, editedPrices) {
 export async function clearOrReset(reset) {
   const prev = await snapshotItems();
   if (!prev.length) {
-    closeModal(false);
     showToast("La lista \xE8 vuota.");
     return;
   }
   const vis = new Set((await visibleListItems()).map((i) => i.id));
   if (!vis.size) {
-    closeModal(false);
     showToast("Nessun articolo nella visualizzazione corrente.");
     return;
   }
@@ -501,7 +499,7 @@ export async function clearOrReset(reset) {
     reset ? "Inizializza Spesa" : "Svuota Lista Spesa",
     reset ? "Tutti gli articoli della spesa corrente verranno deflaggati.<br>Procedere comunque?" : "Tutti gli articoli della spesa corrente verranno rimossi dalla lista.<br>Procedere comunque?",
     "Procedi",
-    { closeButton: false, backdropClose: false, keepModalOnClose: true, cancelFirst: reset, confirmClass: reset ? "btn-primary" : "btn-danger", onClose: () => openListMenu() }
+    { closeButton: false, backdropClose: false, cancelFirst: reset, confirmClass: reset ? "btn-primary" : "btn-danger" }
   );
   if (!yes) return;
   await replaceItems(reset ? prev.map((i) => vis.has(i.id) ? { ...i, checked: false, updatedAt: now() } : i) : prev.filter((i) => !vis.has(i.id)));
@@ -513,19 +511,14 @@ export function openListMenu() {
     save: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.8A1.8 1.8 0 0 1 5.3 3H16.8L20.5 6.7V19.2A1.8 1.8 0 0 1 18.7 21H5.3A1.8 1.8 0 0 1 3.5 19.2Z" fill="#159447" stroke="#0c5c2e" stroke-width="1.15" stroke-linejoin="round"/><rect x="6.5" y="3" width="9" height="5.5" rx=".9" fill="#e6f6ec" stroke="#0c5c2e" stroke-width=".9"/><rect x="12.5" y="4" width="2" height="3.5" fill="#159447"/><rect x="5.8" y="11.5" width="12.4" height="9.5" rx="1.1" fill="#ffffff" stroke="#0c5c2e" stroke-width=".9"/><path d="M8 14.5h8M8 17.5h5.5" stroke="#159447" stroke-width="1.4" stroke-linecap="round"/></svg>',
     saveas: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H16.5L20 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3 19Z" fill="#2f6db5" stroke="#173f73" stroke-width="1.1" stroke-linejoin="round"/><rect x="6.2" y="3" width="8.6" height="5.2" rx=".8" fill="#dfe8f3" stroke="#173f73" stroke-width=".85"/><rect x="12" y="4" width="1.8" height="3.2" fill="#6b7f95"/><rect x="5.3" y="11.8" width="12.4" height="8.7" rx="1" fill="#ffffff" stroke="#173f73" stroke-width=".85"/><path d="M13 19.5l.8-3 4.8-4.8 2.2 2.2-4.8 4.8z" fill="#f5a623" stroke="#8a4b00" stroke-width=".9" stroke-linejoin="round"/><path d="M13 19.5l.8-3 2.2 2.2z" fill="#ffe0a6"/></svg>',
     load: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6A1.5 1.5 0 0 1 4 4.5h4.8l1.8 2.2h8.9A1.5 1.5 0 0 1 21 8.2v2.3H5.5L2.5 19Z" fill="#e0a21b" stroke="#8a5d00" stroke-width="1.1" stroke-linejoin="round"/><rect x="6.5" y="5.5" width="11" height="6.5" rx=".9" fill="#ffffff" stroke="#8a5d00" stroke-width=".85"/><path d="M8.5 8h7M8.5 10.2h5" stroke="#174f86" stroke-width="1.2" stroke-linecap="round"/><path d="M5.6 10.5H22l-3.4 9H2.5Z" fill="#ffd24d" stroke="#8a5d00" stroke-width="1.1" stroke-linejoin="round"/></svg>',
-    reset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
-    empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
     archive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-2.3-1.6L14.4 21 12 19.4 9.6 21l-2.3-1.6L5 21V3Z" fill="#ffffff" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 8h7M8.5 11.8h7M8.5 15.6h4.2" stroke="#174f86" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="16.2" r="3.2" fill="#159447" stroke="#ffffff" stroke-width="1.1"/><path d="M15.9 16.2l.9.9 1.8-1.9" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
-  const card = (key, title, desc, danger = false) => `<button type="button" class="list-action-card${danger ? " is-danger" : ""}" data-list-action="${key}"><span class="list-action-icon ${key === "empty" ? "clear" : key}">${icons[key]}</span><span class="list-action-text"><span class="list-action-title">${title}</span><span class="list-action-desc">${desc}</span></span></button>`;
+  const card = (key, title, desc, danger = false) => `<button type="button" class="list-action-card${danger ? " is-danger" : ""}" data-list-action="${key}"><span class="list-action-icon ${key}">${icons[key]}</span><span class="list-action-text"><span class="list-action-title">${title}</span><span class="list-action-desc">${desc}</span></span></button>`;
   const body = `<div class="list-menu-sheet">
     <div class="list-menu-group-label">Gestione liste salvate</div>
     ${card("save", "Salva", "Salva la lista attuale.")}
     ${card("saveas", "Salva con nome", "Salva la lista attuale con un nuovo nome.")}
     ${card("load", "Elenco liste salvate", "Carica una lista dall\u2019elenco, sostituendo la lista attuale.")}
-    <div class="list-menu-group-label is-second">Visualizzazione corrente</div>
-    ${card("reset", "Inizializza Spesa", "Deflagga tutti gli articoli della spesa corrente.")}
-    ${card("empty", "Svuota Lista Spesa", "Rimuove tutti gli articoli della spesa corrente.", true)}
     <div class="list-menu-group-label is-second">Storico scontrini</div>
     ${card("archive", "Archivio spese", "Archivia la spesa attuale come scontrino e consulta lo storico.")}
   </div>`;
@@ -557,9 +550,6 @@ export function openListMenu() {
     } else if (m === "archive") {
       state.currentModal = null;
       await openArchiveWindow();
-    } else {
-      state.currentModal = null;
-      await clearOrReset(m === "reset");
     }
   }));
 }
@@ -632,8 +622,10 @@ export async function renderList(keepFilterOpen = false) {
   const listFilterActive = !allDisabled && !showAll;
   const listFilterOptions = [{ id: "none", label: "Senza supermercato", html: '<span style="font-style:italic">Senza supermercato</span>', disabled: !hasNoneItems }].concat(storeList.map((sto) => ({ id: sto.id, label: sto.name, html: storeChipHtml(sto), disabled: (storeItemCounts[sto.id] || 0) === 0 })));
   const isListModified = isSavedListModified(_cl, items, pMap, sMap);
+  const resetListIconSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#2f6db5" stroke="#173f73" stroke-width="1"/><path d="M7.2 7.2v3.9h3.9" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.1 14.3a5.2 5.2 0 1 0 1.3-5.7l-2.2 2.2" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const emptyListIconSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.8 8.2h12.4l-.9 11.4a1.6 1.6 0 0 1-1.6 1.4H8.3a1.6 1.6 0 0 1-1.6-1.4Z" fill="#e02424" stroke="#8e1313" stroke-width="1.15" stroke-linejoin="round"/><path d="M9.6 11.2v6.6M12 11.2v6.6M14.4 11.2v6.6" stroke="#ffdede" stroke-width="1.5" stroke-linecap="round"/><rect x="4.2" y="5.4" width="15.6" height="2.8" rx="1.1" fill="#f87171" stroke="#8e1313" stroke-width="1.15"/><path d="M9.3 5.4V4.1a1.1 1.1 0 0 1 1.1-1.1h3.2a1.1 1.1 0 0 1 1.1 1.1v1.3" fill="none" stroke="#8e1313" stroke-width="1.35" stroke-linecap="round"/></svg>';
   let html = `<div class="toolbar"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}</div><button class="header-icon" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.3" fill="#44546a"/><circle cx="12" cy="12" r="2.3" fill="#44546a"/><circle cx="12" cy="19" r="2.3" fill="#44546a"/></svg></button></div>
-  ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : "nessuna lista salvata"}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div><div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi un articolo alla lista</span></button></div>
+  ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><div class="list-inuse-left"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : "nessuna lista salvata"}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div><div class="list-quick-actions"><button type="button" class="header-icon list-quick-icon" id="resetListQuickBtn" aria-label="Inizializza Spesa" title="Inizializza Spesa">${resetListIconSvg}</button><button type="button" class="header-icon list-quick-icon" id="emptyListQuickBtn" aria-label="Svuota Lista Spesa" title="Svuota Lista Spesa">${emptyListIconSvg}</button></div></div><div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi un articolo alla lista</span></button></div>
   <div class="prod-filters-box list-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span></div><div class="prod-filters-grid is-single">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: state.selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "" })}<button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div></div>`;
   if (!visible.length) html += `<div class="empty" style="margin-top:14px">${items.length ? "Nessun articolo per questo filtro." : "La lista \xE8 vuota.<br>Inizia aggiungendo un articolo."}</div>`;
   else {
@@ -697,6 +689,8 @@ export async function renderList(keepFilterOpen = false) {
   bindSwipeDelete(main, "[data-list-item-id]", (row) => removeItemWithUndo(row.dataset.listItemId));
   $("#addItemBtn").addEventListener("click", () => openAddItem());
   $("#clearListBtn").addEventListener("click", openListMenu);
+  $("#resetListQuickBtn")?.addEventListener("click", () => clearOrReset(true));
+  $("#emptyListQuickBtn")?.addEventListener("click", () => clearOrReset(false));
   const menu = $("#storeFilterMenu");
   if (keepFilterOpen && menu) menu.scrollTop = prevScroll;
   const saveFilter = () => localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));

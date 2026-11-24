@@ -1740,4 +1740,61 @@ input[type=search].search-input:placeholder-shown,
 .receipt-item-total{font-size:14px;font-weight:800;color:#123e6d;white-space:nowrap;flex:0 0 auto}
 .receipt-item-total .is-nd{color:#8a5200;font-weight:700}
 
+/* v. 1.72 */
+/* Schermata Lista: icone rapide Inizializza Spesa e Svuota Lista Spesa sulla riga del nome lista */
+.list-inuse-wrap{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.list-inuse-left{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 auto}
+.list-quick-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-left:auto}
+.list-quick-icon{width:40px;height:40px;flex:0 0 40px;border:0;border-radius:50%;background:#e8f3ff;box-shadow:0 3px 10px rgba(0,0,0,.2);padding:0;display:grid;place-items:center}
+.list-quick-icon svg{width:26px;height:26px;display:block}
+.list-quick-icon:active{background:#ffffff;transform:translateY(1px);box-shadow:0 1px 4px rgba(0,0,0,.18)}
+@media(max-width:430px){.list-quick-actions{gap:6px}.list-quick-icon{width:38px;height:38px;flex-basis:38px}.list-quick-icon svg{width:25px;height:25px}}
+@media(max-width:360px){.list-quick-actions{gap:5px}.list-quick-icon{width:35px;height:35px;flex-basis:35px}.list-quick-icon svg{width:23px;height:23px}}
+/* Finestra Archivia spesa: casella Nome Spesa e Data spesa con freccia dropdown uniforme */
+.archive-meta-card .name-box.dirty input[type=text]{padding-right:84px}
+.archive-date-wrap{position:relative;width:100%}
+.archive-meta-card .archive-date-wrap input[type=date]{width:100%;min-height:42px;height:42px;padding:6px 38px 6px 11px;border:1.5px solid #bfcdd6;border-radius:11px;background:linear-gradient(180deg,#ffffff 0%,#eff4f7 100%);box-shadow:inset 0 1px 0 #fff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.09);color:var(--text);font:inherit;font-size:14px;font-weight:650;appearance:none;-webkit-appearance:none;cursor:pointer}
+.archive-meta-card .archive-date-wrap input[type=date]::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;opacity:0;cursor:pointer}
+.archive-date-chevron{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#174f86;pointer-events:none}
+/* Finestra Archivio spese: dropdown filtro supermercati, icona Spese archiviate, riquadri 3D e risultati ricerca articoli */
+.archive-filter-bar .store-filter-trigger{width:100%;min-height:40px;height:40px;padding:6px 10px;gap:6px;font-size:13.5px;font-weight:650;border-radius:11px;border:1.5px solid #bfcdd6;box-shadow:inset 0 1px 0 #fff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.09)}
+.archive-filter-bar .store-filter-trigger.has-filter{border-color:#174f86;background:linear-gradient(180deg,#ffffff 0%,#cde4fa 100%);color:#144678}
+.archive-filter-bar .store-filter-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.archive-filter-bar .store-filter-trigger[aria-expanded="true"] .store-filter-chevron{transform:rotate(180deg);transition:transform .15s}
+.archive-section-icon{width:36px!important;height:36px!important;flex:0 0 36px!important;border-radius:11px!important;background:linear-gradient(180deg,#e4f1fd 0%,#c9e2fa 100%)!important;border:1.5px solid #a6c9eb;box-shadow:0 2px 5px rgba(23,79,134,.14)}
+.archive-section-icon svg{width:23px!important;height:23px!important}
+#archivedReceiptsContainer{gap:9px}
+#archivedReceiptsContainer .swipe-wrap.swipe-compact{border-radius:13px;margin-bottom:0;box-shadow:0 3px 0 #aebfd0,0 5px 10px rgba(20,54,82,.11);transition:transform .08s ease,box-shadow .08s ease}
+#archivedReceiptsContainer .swipe-wrap.swipe-compact:not(.swiping):active{transform:translateY(2px);box-shadow:0 1px 0 #aebfd0,0 2px 5px rgba(20,54,82,.08)}
+#archivedReceiptsContainer .list-row.saved-row.archive-row{cursor:pointer;border-radius:13px;padding:8px 11px!important;background:linear-gradient(180deg,#ffffff 0%,#f0f5fa 100%);border:1.5px solid #c3d3e0;box-shadow:inset 0 1px 0 #ffffff!important}
+#archivedReceiptsContainer .list-row.saved-row.archive-row:active{transform:none}
+.archive-row-grid{display:flex;align-items:stretch;justify-content:space-between;gap:10px;width:100%;min-width:0}
+.archive-row-left{display:flex;flex-direction:column;justify-content:space-between;gap:3px;min-width:0;flex:1}
+.archive-row-right{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:4px;flex:0 0 auto;text-align:right}
+.archive-row-date{font-size:12px;font-weight:750;color:#4a6075;white-space:nowrap}
+.archive-search-item-row{cursor:pointer;border-radius:13px;background:linear-gradient(180deg,#ffffff 0%,#f4f8fc 100%);border:1.5px solid #c3d3e0;box-shadow:inset 0 1px 0 #ffffff,0 3px 0 #aebfd0,0 5px 10px rgba(20,54,82,.10);transition:transform .08s ease,box-shadow .08s ease}
+.archive-search-item-row:active{transform:translateY(2px);box-shadow:inset 0 1px 2px rgba(20,54,82,.08),0 1px 0 #aebfd0,0 2px 5px rgba(20,54,82,.07)}
+.archive-search-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:4px;margin-bottom:2px;border-bottom:1px dashed #d5e2ec}
+.archive-search-item-store{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.archive-search-item-date{font-size:12px;font-weight:750;color:#174f86;white-space:nowrap;flex:0 0 auto}
+/* Finestra Dettaglio scontrino: aggiunte/detrazioni accodate in Scontrino + modifica importo */
+.receipt-adj-form{padding-top:0;border-top:0}
+.receipt-scontrino-total{font-size:16px;font-weight:900;color:#103b66;white-space:nowrap;flex:0 0 auto}
+.swipe-wrap.swipe-receipt-adj{margin-bottom:0;border-radius:12px;box-shadow:none}
+.receipt-item-row.receipt-adj-item-row{cursor:pointer;transition:transform .08s ease,filter .12s ease}
+.receipt-item-row.receipt-adj-item-row:active{filter:brightness(.97)}
+.receipt-item-row.receipt-adj-item-row.is-deduct{background:#e7f8ee;border:1.5px solid #9ad9b2}
+.receipt-item-row.receipt-adj-item-row.is-add{background:#fdecec;border:1.5px solid #f0b1ae}
+.receipt-item-row.receipt-adj-item-row .receipt-item-total.is-deduct{color:#0e6b3a}
+.receipt-item-row.receipt-adj-item-row .receipt-item-total.is-add{color:#b42318}
+.receipt-adj-edit-ico{width:18px;height:18px;flex:0 0 18px;display:grid;place-items:center;opacity:.85}
+.receipt-adj-edit-ico svg{width:15px;height:15px;display:block}
+.receipt-edit-adj-body{display:flex;flex-direction:column;gap:12px}
+.receipt-edit-adj-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:11px;background:#f4f8fc;border:1px solid #d5e4f2}
+.receipt-edit-adj-pill{font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.receipt-edit-adj-pill.is-deduct{background:#d7f3e2;color:#0e6b3a}
+.receipt-edit-adj-pill.is-add{background:#fbd7d5;color:#b42318}
+.receipt-edit-adj-label{font-size:14.5px;font-weight:750;color:var(--text)}
+
+
 
