@@ -1898,3 +1898,19 @@ input[type=search].search-input:placeholder-shown,
 #archiveScopeCard .archive-radio-opt:has(input:checked) .archive-radio-label{color:#123e6d;font-weight:750}
 #archiveScopeCard .archive-radio-opt:has(input:disabled){opacity:.48;background:#f4f7fa;border-color:#dce5ed;box-shadow:none;cursor:not-allowed}
 
+/* v. 1.76 */
+/* Schermata Lista: icone Inizializza e Svuota lista quadrate con bordi stondati e leggermente più grandi */
+.list-quick-icon{width:44px;height:44px;flex:0 0 44px;border-radius:12px}
+.list-quick-icon svg{width:29px;height:29px}
+@media(max-width:430px){.list-quick-icon{width:42px;height:42px;flex-basis:42px;border-radius:11px}.list-quick-icon svg{width:27px;height:27px}}
+@media(max-width:360px){.list-quick-icon{width:39px;height:39px;flex-basis:39px;border-radius:10px}.list-quick-icon svg{width:25px;height:25px}}
+/* Finestra Dettaglio scontrino: titolo Scontrino fisso in alto sotto al widget Nome + etichette Detrazioni su 2 righe */
+.receipt-items-section{overflow:visible}
+.receipt-scontrino-banner{position:sticky;top:calc(var(--receipt-hero-h,112px) - 1px);z-index:13;border-radius:14.5px 14.5px 0 0;box-shadow:0 3px 8px rgba(14,53,92,.14)}
+.receipt-presets-row{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+/* Finestra Archivia spesa: pallino blu sull'option button selezionato in Articoli da includere */
+#archiveScopeCard .archive-radio-opt input[type=radio]{display:inline-grid;place-items:center;box-shadow:none}
+#archiveScopeCard .archive-radio-opt input[type=radio]:checked{border-color:#174f86;background:#ffffff;box-shadow:none}
+#archiveScopeCard .archive-radio-opt input[type=radio]:checked::after{content:"";width:9px;height:9px;border-radius:50%;background:#174f86;box-shadow:none}
+
+

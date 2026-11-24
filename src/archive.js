@@ -13,7 +13,7 @@ const CALENDAR_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ar
 
 const ADJUSTMENT_PRESETS = {
   add: ["Sacchetti BIO", "Borse", "Cauzioni", "Contributo premi", "Arrotondamento", "Consegna"],
-  deduct: ["Buoni fedelt\xE0", "Buoni pasto", "Sconto generale", "Resi", "Arrotondamento"]
+  deduct: ["Buoni fedelt\xE0", "Buoni pasto", "Resi", "Sconto generale", "Arrotondamento"]
 };
 
 function sanitizeReceiptAmountInput(raw) {
@@ -1104,9 +1104,16 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     </div>`;
   }).join("");
 
-  const renderPresetsHtml = (type) => ADJUSTMENT_PRESETS[type].map((lbl) =>
-    `<button type="button" class="receipt-preset-chip${selectedPreset === lbl ? " is-selected" : ""}" data-adj-preset="${esc(lbl)}">${esc(lbl)}</button>`
-  ).join("");
+  const renderPresetChip = (lbl) =>
+    `<button type="button" class="receipt-preset-chip${selectedPreset === lbl ? " is-selected" : ""}" data-adj-preset="${esc(lbl)}">${esc(lbl)}</button>`;
+  const renderPresetsHtml = (type) => {
+    if (type === "deduct") {
+      const row1 = ADJUSTMENT_PRESETS.deduct.slice(0, 3).map(renderPresetChip).join("");
+      const row2 = ADJUSTMENT_PRESETS.deduct.slice(3).map(renderPresetChip).join("");
+      return `<div class="receipt-presets-row">${row1}</div><div class="receipt-presets-row">${row2}</div>`;
+    }
+    return ADJUSTMENT_PRESETS[type].map(renderPresetChip).join("");
+  };
 
   const body = `<div class="saved-lists-sheet receipt-detail-sheet">
     <div class="receipt-hero-sticky">
@@ -1189,6 +1196,19 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   }
 
   const root = $("#modalRoot");
+  const detailSheetEl = root.querySelector(".receipt-detail-sheet");
+  const heroStickyEl = root.querySelector(".receipt-hero-sticky");
+  const syncStickyHeroHeight = () => {
+    if (!detailSheetEl || !heroStickyEl) return;
+    const h = Math.ceil(heroStickyEl.getBoundingClientRect().height);
+    if (h > 0) detailSheetEl.style.setProperty("--receipt-hero-h", `${h}px`);
+  };
+  syncStickyHeroHeight();
+  requestAnimationFrame(syncStickyHeroHeight);
+  if (heroStickyEl && typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(syncStickyHeroHeight);
+    ro.observe(heroStickyEl);
+  }
   const noteInp = $("#receiptNoteInput");
   const noteBox = noteInp?.closest(".name-box");
   let savedNoteVal = currentReceipt.note || "";
