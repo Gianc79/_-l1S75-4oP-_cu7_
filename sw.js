@@ -1,7 +1,9 @@
-const CACHE_NAME = "spesasumisura-v1.75";
+const CACHE_NAME = "spesasumisura-v1.77";
 const ASSETS = [
   "./",
   "./index.html",
+  "./styles.css",
+  "./src/main.js",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
