@@ -1796,5 +1796,59 @@ input[type=search].search-input:placeholder-shown,
 .receipt-edit-adj-pill.is-add{background:#fbd7d5;color:#b42318}
 .receipt-edit-adj-label{font-size:14.5px;font-weight:750;color:var(--text)}
 
+/* v. 1.73 */
+/* Finestra Archivia spesa: etichetta Nome spesa con data scelta a dx + icona calendario di fianco alla casella */
+.archive-note-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
+.archive-note-label-row label{margin:0}
+.archive-picked-date{font-size:12.5px;font-weight:800;color:#174f86;background:#e8f3ff;padding:2px 8px;border-radius:7px;white-space:nowrap;flex:0 0 auto;margin-left:auto}
+.archive-picked-date[hidden]{display:none!important}
+.archive-note-input-row{display:flex;align-items:center;gap:8px}
+.archive-note-input-row .name-box{flex:1 1 auto;min-width:0}
+.archive-cal-btn{position:relative;width:44px;height:42px;flex:0 0 44px;border-radius:11px;border:1.5px solid #bfcdd6;background:linear-gradient(180deg,#ffffff 0%,#eff4f7 100%);box-shadow:inset 0 1px 0 #ffffff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.09);display:grid;place-items:center;overflow:hidden;cursor:pointer;transition:transform .08s ease,box-shadow .08s ease}
+.archive-cal-btn:active{transform:translateY(1.5px);box-shadow:inset 0 1px 2px rgba(15,40,65,.10),0 1px 0 #adc0cc}
+.archive-cal-svg{width:25px;height:25px;display:block;pointer-events:none}
+.archive-cal-native-input{position:absolute;inset:0;width:100%!important;height:100%!important;min-height:0!important;padding:0!important;margin:0;border:0!important;opacity:0;cursor:pointer;z-index:2;appearance:none;-webkit-appearance:none}
+.archive-cal-native-input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;opacity:0;cursor:pointer}
+/* Finestra Dettaglio scontrino: casella modificabile nel widget Nome */
+.receipt-hero-note-box input[type=text]{min-height:40px;height:40px;padding:6px 11px;font-size:14px;font-weight:650;color:#273b4e;background:#f4f8fc;border:1.5px solid #c9dcee;border-radius:10px}
+.receipt-hero-note-box input[type=text]:focus{background:#ffffff;border-color:#2f6db5}
+.receipt-hero-note-box.dirty input[type=text]{padding-right:84px}
+/* Finestra Dettaglio scontrino: widget Multischeda Aggiunte e detrazioni allo scontrino */
+.receipt-tabs-wrap{display:flex;flex-direction:column}
+.receipt-tabs-bar{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 4px;position:relative;z-index:2}
+.receipt-tab-btn{min-height:38px;padding:7px 10px;border:1.5px solid #bfd3e6;border-bottom:0;border-radius:11px 11px 0 0;background:#e4eef7;color:#415b76;font-size:13.5px;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:4px;margin-bottom:-1.5px;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.receipt-tab-btn.active{background:#f7fbff;color:#123e6d;border-color:#93b8dc;border-bottom:1.5px solid #f7fbff;box-shadow:0 -2px 6px rgba(18,62,109,.07)}
+.receipt-tab-btn.is-add.active{color:#a82016}
+.receipt-tab-btn.is-deduct.active{color:#0e6b3a}
+.receipt-tab-panel{position:relative;z-index:1;display:flex;flex-direction:column;gap:9px;padding:11px 10px 10px;background:#f7fbff;border:1.5px solid #93b8dc;border-radius:12px}
+.receipt-preset-chip.is-selected{background:linear-gradient(180deg,#fff3a6 0%,#ffe066 100%);border-color:#d4a617;color:#123e6d;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 2px 5px rgba(160,120,0,.18)}
+.receipt-adj-inputs{display:flex;align-items:center;gap:8px}
+.receipt-adj-amt-field{display:flex;align-items:center;gap:5px;flex:1 1 auto;min-width:0}
+.receipt-adj-amt-box{flex:1 1 auto;min-width:0}
+.receipt-adj-amt-box input[type=text]{width:100%;min-height:40px;height:40px;padding:6px 10px;font-size:15px;font-weight:750;text-align:right;border-radius:10px;background:#ffffff}
+.receipt-adj-amt-box.dirty input[type=text]{text-align:left;padding:6px 76px 6px 10px}
+.receipt-adj-amt-box button{width:30px;height:30px}
+.receipt-adj-amt-box .name-ok{right:4px}
+.receipt-adj-amt-box .name-no{right:38px}
+.receipt-adj-eur{font-weight:800;color:#123e6d;font-size:15px;flex:0 0 auto}
+.receipt-adj-inputs #addAdjBtn{flex:0 0 auto;width:auto;min-height:40px;height:40px;padding:0 14px;border-radius:10px;white-space:nowrap}
+@media(max-width:380px){
+  .receipt-adj-inputs{display:flex;align-items:center;gap:7px}
+  .receipt-adj-inputs #addAdjBtn{width:auto;padding:0 12px}
+}
+/* Elenco record aggiunti in fondo alla scheda (swipe verso destra per eliminare) */
+.receipt-adj-records{display:flex;flex-direction:column;gap:6px;padding-top:9px;border-top:1px dashed #b9d0e6}
+.receipt-adj-item-compact{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;border-radius:11px;background:#ffffff;border:1.5px solid #c9dcee;cursor:grab}
+.receipt-adj-item-compact.is-add{background:#fdecec;border-color:#f0b1ae}
+.receipt-adj-item-compact.is-deduct{background:#e7f8ee;border-color:#9ad9b2}
+.receipt-adj-compact-name{flex:1 1 auto;min-width:0;font-size:13.5px;font-weight:750;color:var(--text);overflow-wrap:anywhere}
+.receipt-adj-compact-amount{flex:0 0 auto;font-size:14px;font-weight:850;white-space:nowrap}
+.receipt-adj-compact-amount.is-add{color:#b42318}
+.receipt-adj-compact-amount.is-deduct{color:#0e6b3a}
+/* Widget Scontrino: importo evidenziato in riquadro azzurro uguale alla data + righe aggiunte/detrazioni non eliminabili */
+.receipt-scontrino-total{font-size:15px;font-weight:850;color:#174f86;background:#e8f3ff;padding:4px 9px;border-radius:8px;white-space:nowrap;flex:0 0 auto}
+.receipt-item-row.receipt-adj-readonly{cursor:default}
+.receipt-item-row.receipt-adj-readonly:active{filter:none}
+
 
 

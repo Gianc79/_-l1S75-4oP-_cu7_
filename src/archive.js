@@ -1,6 +1,6 @@
 // Archivio spese (scontrini immutabili), aggiunte/detrazioni cassa e riepilogo risparmio
 import { state } from "./state.js";
-import { PENCIL_SVG, SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
+import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
 import { $, assignUnit, esc, eurosFromInput, fmtQtyUnit, money, moneyPerUnit, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
@@ -8,12 +8,23 @@ import { currentSavedListId } from "./history.js";
 import { openListMenu } from "./shoppingList.js";
 
 const RECEIPT_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 2.5h15v19l-2.5-1.7-2.5 1.7-2.5-1.7-2.5 1.7-2.5-1.7-2.5 1.7v-19Z" fill="#ffffff" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><rect x="4.5" y="2.5" width="15" height="4.2" fill="#2f6db5"/><path d="M8 10h8M8 13.3h6.5M8 16.5h4.2" stroke="#174f86" stroke-width="1.55" stroke-linecap="round"/><circle cx="17.2" cy="16.2" r="3.6" fill="#159447" stroke="#ffffff" stroke-width="1.2"/><path d="M15.7 16.2l1 1 2.1-2.2" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const CHEVRON_DOWN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="archive-date-chevron"><path d="m6 9 6 6 6-6"/></svg>';
+const CALENDAR_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" class="archive-cal-svg"><rect x="2.75" y="4.75" width="18.5" height="16.5" rx="2.6" fill="#ffffff" stroke="#174f86" stroke-width="1.5"/><path d="M2.75 7.35A2.6 2.6 0 0 1 5.35 4.75h13.3a2.6 2.6 0 0 1 2.6 2.6V9.6H2.75V7.35Z" fill="#d93829" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.6 2.4v4M16.4 2.4v4" stroke="#174f86" stroke-width="2" stroke-linecap="round"/><rect x="6" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="10.65" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="15.3" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="6" y="16" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="10.65" y="16" width="2.7" height="2.4" rx=".5" fill="#d93829"/><rect x="15.3" y="16" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/></svg>';
 
 const ADJUSTMENT_PRESETS = {
-  deduct: ["Buono fedelt\xE0", "Sconto cassa", "Buoni pasto", "Arrotondamento"],
-  add: ["Sacchetti", "Contributo premi", "Arrotondamento"]
+  add: ["Sacchetti", "Contributo premi", "Arrotondamento"],
+  deduct: ["Buono fedelt\xE0", "Sconto generale", "Buoni pasto", "Arrotondamento"]
 };
+
+function sanitizeReceiptAmountInput(raw) {
+  const s = String(raw ?? "").replace(/\./g, ",").replace(/[^0-9,]/g, "");
+  const commaIdx = s.indexOf(",");
+  if (commaIdx !== -1) {
+    const intPart = s.slice(0, commaIdx).slice(0, 4);
+    const decPart = s.slice(commaIdx + 1).replace(/,/g, "").slice(0, 2);
+    return `${intPart},${decPart}`;
+  }
+  return s.slice(0, 4);
+}
 
 function todayIsoDate() {
   const d = new Date();
@@ -332,7 +343,7 @@ export async function openArchiveWindow(opts = {}) {
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Seleziona una spesa archiviata per vedere il dettaglio e gestire eventuali aggiunte (es. costo sacchetti) o detrazioni (es. buoni fedelt\xE0, sconti spesa).<br>Scorri verso destra per eliminare.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche ricercare un articolo all'interno delle spese archiviate, per ricostruire lo storico del prezzo.</div>`);
   }
 
   const container = $("#archivedReceiptsContainer");
@@ -572,20 +583,20 @@ export async function openArchiveCurrentListModal() {
     <div id="archiveMissingBox" class="archive-card archive-warn-card" hidden></div>
 
     <div class="archive-card archive-meta-card">
-      <div class="archive-meta-grid">
-        <div class="field">
-          <label for="archiveNoteInput">Nome Spesa</label>
+      <div class="field">
+        <div class="archive-note-label-row">
+          <label for="archiveNoteInput">Nome spesa</label>
+          <span class="archive-picked-date" id="archivePickedDate" hidden></span>
+        </div>
+        <div class="archive-note-input-row">
           <div class="name-box">
             <input id="archiveNoteInput" type="text" maxlength="20" autocomplete="off">
             <button type="button" class="name-no" id="archiveNoteNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
             <button type="button" class="name-ok" id="archiveNoteOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button>
           </div>
-        </div>
-        <div class="field">
-          <label for="archivePurchaseDate">Data spesa</label>
-          <div class="archive-date-wrap">
-            <input id="archivePurchaseDate" type="date" value="${todayIsoDate()}">
-            ${CHEVRON_DOWN_SVG}
+          <div class="archive-cal-btn" title="Scegli data spesa">
+            ${CALENDAR_ICON_SVG}
+            <input id="archivePurchaseDate" type="date" class="archive-cal-native-input" aria-label="Scegli data spesa">
           </div>
         </div>
       </div>
@@ -893,75 +904,25 @@ export async function openArchiveCurrentListModal() {
   }
 
   const dateInp = $("#archivePurchaseDate");
+  const pickedDateEl = $("#archivePickedDate");
+  const syncPickedDate = () => {
+    if (!pickedDateEl || !dateInp) return;
+    const v = (dateInp.value || "").trim();
+    if (v) {
+      pickedDateEl.textContent = fmtIsoDate(v);
+      pickedDateEl.hidden = false;
+    } else {
+      pickedDateEl.textContent = "";
+      pickedDateEl.hidden = true;
+    }
+  };
   dateInp?.addEventListener("click", () => {
     try { dateInp.showPicker?.(); } catch (_) {}
   });
+  dateInp?.addEventListener("change", syncPickedDate);
+  dateInp?.addEventListener("input", syncPickedDate);
 
   refreshWizard();
-}
-
-function openEditAdjustmentModal(receipt, adj, archiveOpts, adjType, keepScroll) {
-  const isAdd = adj.type === "add";
-  const initialAmt = (Number(adj.amountMinor || 0) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
-  const reopenDetail = () => openReceiptDetailWindow(receipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
-  const body = `<div class="receipt-edit-adj-body">
-    <div class="receipt-edit-adj-head">
-      <span class="receipt-edit-adj-pill ${isAdd ? "is-add" : "is-deduct"}">${isAdd ? "+ Aggiunta" : "\u2212 Detrazione"}</span>
-      <strong class="receipt-edit-adj-label">${esc(adj.label)}</strong>
-    </div>
-    <div class="field" style="margin:0">
-      <label for="editAdjAmountInput">Importo</label>
-      <div class="receipt-adj-amt-wrap">
-        <input type="text" inputmode="decimal" id="editAdjAmountInput" value="${esc(initialAmt)}" autocomplete="off" aria-label="Importo in euro">
-        <span>\u20AC</span>
-      </div>
-    </div>
-  </div>`;
-
-  const saveEdit = async () => {
-    const amtRaw = ($("#editAdjAmountInput")?.value || "").trim();
-    const amountMinor = eurosFromInput(amtRaw);
-    if (amountMinor === null || Number.isNaN(amountMinor) || amountMinor <= 0) {
-      showToast("Inserisci un importo valido maggiore di zero.");
-      $("#editAdjAmountInput")?.focus();
-      return;
-    }
-    const updated = {
-      ...receipt,
-      adjustments: (receipt.adjustments || []).map((a) => a.id === adj.id ? { ...a, amountMinor } : a),
-      updatedAt: now()
-    };
-    await putOne("archivedReceipts", updated);
-    releaseModalKeyboard();
-    state.currentModal = null;
-    state.currentModalKeep = false;
-    await reopenDetail();
-    showToast("Importo aggiornato");
-  };
-
-  modal("Modifica importo", body, [
-    { label: "Annulla", class: "btn-plain", action: () => { state.currentModal = null; state.currentModalKeep = false; reopenDetail(); } },
-    { label: "Salva", class: "btn-primary", action: saveEdit }
-  ], {
-    closeButton: false,
-    backdropClose: false,
-    alignTop: true,
-    keepModalOnClose: true,
-    themed: true,
-    onClose: reopenDetail
-  });
-
-  const editInp = $("#editAdjAmountInput");
-  if (editInp) {
-    selectAllOnFocus(editInp);
-    editInp.focus();
-    editInp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.keyCode === 13) {
-        e.preventDefault();
-        saveEdit();
-      }
-    });
-  }
 }
 
 export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detailState = {}) {
@@ -972,61 +933,81 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     return;
   }
 
-  const t = computeReceiptTotals(receipt);
-  const dt = fmtIsoDate(receipt.purchaseDate, receipt.archivedAt);
-  const adjustments = Array.isArray(receipt.adjustments) ? receipt.adjustments : [];
-  const items = Array.isArray(receipt.items) ? receipt.items : [];
-  let adjType = detailState.adjType === "add" ? "add" : "deduct";
+  let currentReceipt = receipt;
+  const t = computeReceiptTotals(currentReceipt);
+  const dt = fmtIsoDate(currentReceipt.purchaseDate, currentReceipt.archivedAt);
+  const adjustments = Array.isArray(currentReceipt.adjustments) ? currentReceipt.adjustments : [];
+  const items = Array.isArray(currentReceipt.items) ? currentReceipt.items : [];
+  let adjType = detailState.adjType === "deduct" ? "deduct" : "add";
+  let selectedPreset = "";
 
   const itemsRowsHtml = items.map((it) => renderReceiptItemRowHtml(it)).join("");
 
-  const adjItemRowsHtml = adjustments.map((adj) => {
+  const adjCardRowsHtml = adjustments.map((adj) => {
     const isAdd = adj.type === "add";
     const sign = isAdd ? "+" : "\u2212";
-    return swipeWrap(`<div class="receipt-item-row receipt-adj-item-row ${isAdd ? "is-add" : "is-deduct"}" data-adj-row="${esc(adj.id)}" role="button" tabindex="0" aria-label="Modifica importo ${esc(adj.label)}">
-      <div class="receipt-item-top">
-        <span class="receipt-item-name">${esc(adj.label)}</span>
-        <span class="receipt-adj-edit-ico" aria-hidden="true">${PENCIL_SVG}</span>
-      </div>
-      <div class="receipt-item-bottom">
-        <span class="receipt-item-cat">${isAdd ? "Aggiunta cassa" : "Detrazione cassa"}</span>
-        <strong class="receipt-item-total ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(adj.amountMinor)}</strong>
-      </div>
+    return swipeWrap(`<div class="receipt-adj-item-compact ${isAdd ? "is-add" : "is-deduct"}" data-adj-card-row="${esc(adj.id)}">
+      <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
+      <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(adj.amountMinor)}</strong>
     </div>`, "swipe-receipt-adj");
   }).join("");
 
+  const adjReceiptRowsHtml = adjustments.map((adj) => {
+    const isAdd = adj.type === "add";
+    const sign = isAdd ? "+" : "\u2212";
+    return `<div class="receipt-item-row receipt-adj-item-row receipt-adj-readonly ${isAdd ? "is-add" : "is-deduct"}">
+      <div class="receipt-item-top">
+        <span class="receipt-item-name">${esc(adj.label)}</span>
+      </div>
+      <div class="receipt-item-bottom">
+        <span class="receipt-item-cat">${isAdd ? "Aggiunta" : "Detrazione"}</span>
+        <strong class="receipt-item-total ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(adj.amountMinor)}</strong>
+      </div>
+    </div>`;
+  }).join("");
+
   const renderPresetsHtml = (type) => ADJUSTMENT_PRESETS[type].map((lbl) =>
-    `<button type="button" class="receipt-preset-chip" data-adj-preset="${esc(lbl)}">${esc(lbl)}</button>`
+    `<button type="button" class="receipt-preset-chip${selectedPreset === lbl ? " is-selected" : ""}" data-adj-preset="${esc(lbl)}">${esc(lbl)}</button>`
   ).join("");
 
   const body = `<div class="saved-lists-sheet receipt-detail-sheet">
     <div class="receipt-hero-card">
       <div class="receipt-hero-head">
-        <div class="receipt-hero-store">${receiptStoreChip(receipt, "store-chip-heading")}</div>
+        <div class="receipt-hero-store">${receiptStoreChip(currentReceipt, "store-chip-heading")}</div>
         <span class="receipt-hero-date">${dt}</span>
       </div>
-      ${receipt.note ? `<div class="receipt-hero-note">${esc(receipt.note)}</div>` : ""}
+      <div class="name-box receipt-hero-note-box">
+        <input id="receiptNoteInput" type="text" maxlength="20" value="${esc(currentReceipt.note || "")}" placeholder="Nome spesa" autocomplete="off" aria-label="Nome spesa">
+        <button type="button" class="name-no" id="receiptNoteNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
+        <button type="button" class="name-ok" id="receiptNoteOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button>
+      </div>
     </div>
 
     <div class="archive-card receipt-adj-card">
       <div class="saved-list-head">
         <div class="saved-list-head-left">
-          <span class="saved-list-title">Aggiunte e detrazioni cassa</span>
+          <span class="saved-list-title">Aggiunte e detrazioni allo scontrino</span>
         </div>
       </div>
-      <div class="receipt-adj-form">
-        <div class="prod-seg prod-seg-2" role="tablist" aria-label="Tipo voce cassa">
-          <button type="button" class="prod-seg-btn${adjType === "deduct" ? " active" : ""}" data-adj-type="deduct">\u2212 Detrazione</button>
-          <button type="button" class="prod-seg-btn${adjType === "add" ? " active" : ""}" data-adj-type="add">+ Aggiunta</button>
+      <div class="receipt-tabs-wrap">
+        <div class="receipt-tabs-bar" role="tablist" aria-label="Tipo voce scontrino">
+          <button type="button" role="tab" aria-selected="${adjType === "add" ? "true" : "false"}" class="receipt-tab-btn is-add${adjType === "add" ? " active" : ""}" data-adj-type="add">+ Aggiunte</button>
+          <button type="button" role="tab" aria-selected="${adjType === "deduct" ? "true" : "false"}" class="receipt-tab-btn is-deduct${adjType === "deduct" ? " active" : ""}" data-adj-type="deduct">\u2212 Detrazioni</button>
         </div>
-        <div class="receipt-presets" id="receiptAdjPresets">${renderPresetsHtml(adjType)}</div>
-        <div class="receipt-adj-inputs">
-          <input type="text" id="adjLabelInput" maxlength="40" autocomplete="off" aria-label="Descrizione voce">
-          <div class="receipt-adj-amt-wrap">
-            <input type="text" inputmode="decimal" id="adjAmountInput" placeholder="0,00" autocomplete="off" aria-label="Importo in euro">
-            <span>\u20AC</span>
+        <div class="receipt-tab-panel" role="tabpanel">
+          <div class="receipt-presets" id="receiptAdjPresets">${renderPresetsHtml(adjType)}</div>
+          <div class="receipt-adj-inputs">
+            <div class="receipt-adj-amt-field">
+              <div class="name-box receipt-adj-amt-box">
+                <input type="text" inputmode="decimal" enterkeyhint="done" id="adjAmountInput" maxlength="7" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Importo in euro">
+                <button type="button" class="name-no" id="adjAmountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
+                <button type="button" class="name-ok" id="adjAmountOk" aria-label="Conferma importo" title="Conferma importo">${SVG_CHK}</button>
+              </div>
+              <span class="receipt-adj-eur">\u20AC</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-small" id="addAdjBtn">Aggiungi</button>
           </div>
-          <button type="button" class="btn btn-primary btn-small" id="addAdjBtn">Aggiungi</button>
+          ${adjCardRowsHtml ? `<div class="receipt-adj-records" id="receiptAdjRecords">${adjCardRowsHtml}</div>` : ""}
         </div>
       </div>
     </div>
@@ -1039,7 +1020,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
         </div>
         <strong class="receipt-scontrino-total">${money(t.finalTotalMinor)}</strong>
       </div>
-      <div class="receipt-items-list" id="receiptItemsList">${itemsRowsHtml}${adjItemRowsHtml}</div>
+      <div class="receipt-items-list" id="receiptItemsList">${itemsRowsHtml}${adjReceiptRowsHtml}</div>
     </div>
   </div>`;
 
@@ -1048,12 +1029,12 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     { label: "Elimina", class: "btn-danger", action: async () => {
       const yes = await confirmDialog(
         "Elimina scontrino",
-        `Lo scontrino di <strong>${esc(receipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente. Procedere comunque?`,
+        `Lo scontrino di <strong>${esc(currentReceipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente. Procedere comunque?`,
         "Elimina",
         { overlay: true, cancelFirst: true, confirmClass: "btn-danger", themed: true, backdropClose: false }
       );
       if (!yes) return;
-      await delOne("archivedReceipts", receipt.id);
+      await delOne("archivedReceipts", currentReceipt.id);
       state.currentModal = null;
       state.currentModalKeep = false;
       await openArchiveWindow(archiveOpts);
@@ -1076,19 +1057,70 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Gli articoli dello scontrino sono congelati alla data di archiviazione e non risentono di future modifiche al catalogo.<br>Puoi aggiungere aggiunte (es. sacchetti) o detrazioni (es. buoni o sconti cassa), toccarle per modificarne l\u2019importo o scorrerle verso destra per eliminarle.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Gli articoli dello scontrino sono congelati alla data di archiviazione e non risentono di future modifiche al catalogo.<br>Puoi aggiungere AGGIUNTE (es. sacchetti) o DETRAZIONI (es. buoni fedelt\xE0) allo scontrino, o eliminarle scorrendo verso destra.</div>`);
   }
 
   const root = $("#modalRoot");
-  const labelInp = $("#adjLabelInput");
+  const noteInp = $("#receiptNoteInput");
+  const noteBox = noteInp?.closest(".name-box");
+  let savedNoteVal = currentReceipt.note || "";
+  const syncReceiptNoteDirty = () => {
+    if (!noteInp || !noteBox) return;
+    noteBox.classList.toggle("dirty", noteInp.value !== savedNoteVal);
+  };
+  if (noteInp && noteBox) {
+    noteInp.addEventListener("input", () => {
+      if (noteInp.value.length > 20) noteInp.value = noteInp.value.slice(0, 20);
+      syncReceiptNoteDirty();
+    });
+    $("#receiptNoteNo")?.addEventListener("mousedown", (e) => e.preventDefault());
+    $("#receiptNoteNo")?.addEventListener("click", () => {
+      noteInp.value = savedNoteVal;
+      syncReceiptNoteDirty();
+      noteInp.blur();
+      releaseModalKeyboard();
+    });
+    $("#receiptNoteOk")?.addEventListener("mousedown", (e) => e.preventDefault());
+    const saveReceiptNote = async () => {
+      const nextNote = noteInp.value.trim().slice(0, 20);
+      noteInp.value = nextNote;
+      if (nextNote !== savedNoteVal) {
+        currentReceipt = { ...currentReceipt, note: nextNote, updatedAt: now() };
+        await putOne("archivedReceipts", currentReceipt);
+        savedNoteVal = nextNote;
+        showToast("Nome spesa aggiornato");
+      }
+      syncReceiptNoteDirty();
+      noteInp.blur();
+      releaseModalKeyboard();
+    };
+    $("#receiptNoteOk")?.addEventListener("click", saveReceiptNote);
+    noteInp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        saveReceiptNote();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        noteInp.value = savedNoteVal;
+        syncReceiptNoteDirty();
+        noteInp.blur();
+        releaseModalKeyboard();
+      }
+    });
+  }
+
   const amtInp = $("#adjAmountInput");
+  const amtBox = amtInp?.closest(".name-box");
   const presetsWrap = $("#receiptAdjPresets");
-  const itemsListEl = $("#receiptItemsList");
+  const adjRecordsEl = $("#receiptAdjRecords");
 
   const bindPresetChips = () => {
     presetsWrap?.querySelectorAll("[data-adj-preset]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (labelInp) labelInp.value = btn.dataset.adjPreset;
+        selectedPreset = btn.dataset.adjPreset || "";
+        presetsWrap.querySelectorAll("[data-adj-preset]").forEach((b) => {
+          b.classList.toggle("is-selected", b.dataset.adjPreset === selectedPreset);
+        });
         amtInp?.focus();
       });
     });
@@ -1097,8 +1129,15 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
 
   root.querySelectorAll("[data-adj-type]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      adjType = btn.dataset.adjType === "add" ? "add" : "deduct";
-      root.querySelectorAll("[data-adj-type]").forEach((b) => b.classList.toggle("active", b.dataset.adjType === adjType));
+      const nextType = btn.dataset.adjType === "deduct" ? "deduct" : "add";
+      if (nextType === adjType) return;
+      adjType = nextType;
+      selectedPreset = "";
+      root.querySelectorAll("[data-adj-type]").forEach((b) => {
+        const isAct = b.dataset.adjType === adjType;
+        b.classList.toggle("active", isAct);
+        b.setAttribute("aria-selected", String(isAct));
+      });
       if (presetsWrap) {
         presetsWrap.innerHTML = renderPresetsHtml(adjType);
         bindPresetChips();
@@ -1106,19 +1145,73 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     });
   });
 
-  if (amtInp) selectAllOnFocus(amtInp);
+  let confirmedAmtVal = "";
+  const syncAmtDirty = () => {
+    if (!amtInp || !amtBox) return;
+    amtBox.classList.toggle("dirty", amtInp.value !== confirmedAmtVal);
+  };
+  if (amtInp && amtBox) {
+    selectAllOnFocus(amtInp);
+    amtInp.addEventListener("input", () => {
+      const clean = sanitizeReceiptAmountInput(amtInp.value);
+      if (amtInp.value !== clean) amtInp.value = clean;
+      syncAmtDirty();
+    });
+    $("#adjAmountNo")?.addEventListener("mousedown", (e) => e.preventDefault());
+    $("#adjAmountNo")?.addEventListener("click", () => {
+      amtInp.value = confirmedAmtVal;
+      syncAmtDirty();
+      amtInp.blur();
+      releaseModalKeyboard();
+    });
+    $("#adjAmountOk")?.addEventListener("mousedown", (e) => e.preventDefault());
+    const confirmAmtInput = () => {
+      const raw = amtInp.value.trim();
+      if (!raw) {
+        confirmedAmtVal = "";
+        amtInp.value = "";
+        syncAmtDirty();
+        amtInp.blur();
+        releaseModalKeyboard();
+        return;
+      }
+      const cents = eurosFromInput(raw);
+      if (cents === null || Number.isNaN(cents) || cents <= 0 || cents > 999999) {
+        showToast("Inserisci un importo valido maggiore di zero (max 9999,99 \u20AC).");
+        amtInp.focus();
+        return;
+      }
+      confirmedAmtVal = (cents / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+      amtInp.value = confirmedAmtVal;
+      syncAmtDirty();
+      amtInp.blur();
+      releaseModalKeyboard();
+    };
+    $("#adjAmountOk")?.addEventListener("click", confirmAmtInput);
+    amtInp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        confirmAmtInput();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        amtInp.value = confirmedAmtVal;
+        syncAmtDirty();
+        amtInp.blur();
+        releaseModalKeyboard();
+      }
+    });
+  }
 
   const commitAdjustment = async () => {
-    const label = (labelInp?.value || "").trim();
+    const label = selectedPreset.trim();
     const amtRaw = (amtInp?.value || "").trim();
     if (!label) {
-      showToast("Inserisci una descrizione (es. Buono fedelt\xE0 o Sacchetti).");
-      labelInp?.focus();
+      showToast("Seleziona prima un'opzione disponibile.");
       return;
     }
     const amountMinor = eurosFromInput(amtRaw);
-    if (amountMinor === null || Number.isNaN(amountMinor) || amountMinor <= 0) {
-      showToast("Inserisci un importo valido maggiore di zero.");
+    if (amountMinor === null || Number.isNaN(amountMinor) || amountMinor <= 0 || amountMinor > 999999) {
+      showToast("Inserisci un importo valido maggiore di zero (max 9999,99 \u20AC).");
       amtInp?.focus();
       return;
     }
@@ -1130,7 +1223,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       createdAt: now()
     };
     const updated = {
-      ...receipt,
+      ...currentReceipt,
       adjustments: [...adjustments, newAdj],
       updatedAt: now()
     };
@@ -1139,55 +1232,26 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     releaseModalKeyboard();
     state.currentModal = null;
     state.currentModalKeep = false;
-    await openReceiptDetailWindow(receipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
+    await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
     showToast(adjType === "add" ? "Aggiunta salvata" : "Detrazione salvata");
   };
 
   $("#addAdjBtn")?.addEventListener("click", commitAdjustment);
-  amtInp?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.keyCode === 13) {
-      e.preventDefault();
-      commitAdjustment();
-    }
-  });
-  labelInp?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.keyCode === 13) {
-      e.preventDefault();
-      amtInp?.focus();
-    }
-  });
 
-  itemsListEl?.querySelectorAll("[data-adj-row]").forEach((row) => {
-    const openEdit = () => {
-      if (row.dataset.swiping === "1") return;
-      const adj = adjustments.find((a) => a.id === row.dataset.adjRow);
-      if (!adj) return;
+  if (adjRecordsEl) {
+    bindSwipeDelete(adjRecordsEl, "[data-adj-card-row]", async (row) => {
+      const adjId = row.dataset.adjCardRow;
+      const updated = {
+        ...currentReceipt,
+        adjustments: adjustments.filter((a) => a.id !== adjId),
+        updatedAt: now()
+      };
+      await putOne("archivedReceipts", updated);
       const keepScroll = modalEl ? modalEl.scrollTop : 0;
       state.currentModal = null;
       state.currentModalKeep = false;
-      openEditAdjustmentModal(receipt, adj, archiveOpts, adjType, keepScroll);
-    };
-    row.addEventListener("click", openEdit);
-    row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        openEdit();
-      }
+      await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
+      showToast("Voce rimossa");
     });
-  });
-
-  bindSwipeDelete(itemsListEl, "[data-adj-row]", async (row) => {
-    const adjId = row.dataset.adjRow;
-    const updated = {
-      ...receipt,
-      adjustments: adjustments.filter((a) => a.id !== adjId),
-      updatedAt: now()
-    };
-    await putOne("archivedReceipts", updated);
-    const keepScroll = modalEl ? modalEl.scrollTop : 0;
-    state.currentModal = null;
-    state.currentModalKeep = false;
-    await openReceiptDetailWindow(receipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
-    showToast("Voce rimossa");
-  });
+  }
 }
