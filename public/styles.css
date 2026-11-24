@@ -1899,19 +1899,18 @@ input[type=search].search-input:placeholder-shown,
 #archiveScopeCard .archive-radio-opt:has(input:disabled){opacity:.48;background:#f4f7fa;border-color:#dce5ed;box-shadow:none;cursor:not-allowed}
 
 /* v. 1.76 */
-/* Schermata Lista: icone Inizializza e Svuota lista quadrate con bordi stondati e leggermente più grandi */
-.list-quick-icon{width:44px;height:44px;flex:0 0 44px;border-radius:12px}
-.list-quick-icon svg{width:29px;height:29px}
-@media(max-width:430px){.list-quick-icon{width:42px;height:42px;flex-basis:42px;border-radius:11px}.list-quick-icon svg{width:27px;height:27px}}
-@media(max-width:360px){.list-quick-icon{width:39px;height:39px;flex-basis:39px;border-radius:10px}.list-quick-icon svg{width:25px;height:25px}}
+/* Schermata Lista: icone Inizializza e Svuota lista quadrate con bordi stondati e dimensioni uniformi (cestino in alto, Inizializza sotto) */
+.toolbar .list-quick-icon,.list-quick-icon{width:44px;height:44px;flex:0 0 44px;border-radius:12px}
+.toolbar .list-quick-icon svg,.list-quick-icon svg{width:29px;height:29px}
+@media(max-width:430px){.toolbar .list-quick-icon,.list-quick-icon{width:42px;height:42px;flex-basis:42px;border-radius:11px}.toolbar .list-quick-icon svg,.list-quick-icon svg{width:27px;height:27px}}
+@media(max-width:360px){.toolbar .list-quick-icon,.list-quick-icon{width:39px;height:39px;flex-basis:39px;border-radius:10px}.toolbar .list-quick-icon svg,.list-quick-icon svg{width:25px;height:25px}}
 /* Finestra Dettaglio scontrino: titolo Scontrino fisso in alto sotto al widget Nome + etichette Detrazioni su 2 righe + 3a riga vuota */
 .receipt-items-section{overflow:visible}
 .receipt-scontrino-banner{position:sticky;top:calc(var(--receipt-hero-h,112px) - 1px);z-index:13;border-radius:14.5px 14.5px 0 0;box-shadow:0 3px 8px rgba(14,53,92,.14)}
 .receipt-presets-row{display:flex;flex-wrap:wrap;gap:6px;width:100%}
-.receipt-preset-phantom{visibility:hidden;pointer-events:none;user-select:none}
-/* Finestre Archivio spese e Dettaglio scontrino: nome spesa blu grassetto + riquadro articolo su 4 righe con importo allineato in fondo */
-.archive-row-note{font-size:13px;font-weight:800;color:#174f86}
-.receipt-item-cat-row,.receipt-item-price{font-size:12px;color:var(--muted);line-height:1.25;min-width:0}
+.receipt-presets-spacer{min-height:26.4px;height:26.4px;pointer-events:none}
+/* Finestre Archivio spese e Dettaglio scontrino: nome spesa blu grassetto + importo allineato all'ultima riga */
+.archive-row .archive-row-note{font-size:13px;font-weight:800;color:#1e6bb8}
 .receipt-item-bottom{align-items:flex-end}
 /* Finestra Archivia spesa: pallino blu sull'option button selezionato in Articoli da includere */
 #archiveScopeCard .archive-radio-opt input[type=radio]{display:inline-grid;place-items:center;box-shadow:none}

@@ -272,9 +272,9 @@ function renderReceiptItemRowHtml(it, opts = {}) {
       <span class="receipt-item-qty">${qtyText}</span>
     </div>
     ${brandHtml}
-    <div class="receipt-item-cat-row">${esc(it.categoryNameSnapshot || "Senza reparto")}</div>
+    <div class="receipt-item-cat">${esc(it.categoryNameSnapshot || "Senza reparto")}</div>
     <div class="receipt-item-bottom">
-      <span class="receipt-item-price">${unitPriceHtml}</span>
+      <span class="receipt-item-cat">${unitPriceHtml}</span>
       <strong class="receipt-item-total">${totalHtml}</strong>
     </div>
   </div>`;
@@ -1112,7 +1112,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     if (type === "deduct") {
       const row1 = ADJUSTMENT_PRESETS.deduct.slice(0, 3).map(renderPresetChip).join("");
       const row2 = ADJUSTMENT_PRESETS.deduct.slice(3).map(renderPresetChip).join("");
-      return `<div class="receipt-presets-row">${row1}</div><div class="receipt-presets-row">${row2}</div><div class="receipt-presets-row receipt-presets-spacer" aria-hidden="true"><button type="button" class="receipt-preset-chip receipt-preset-phantom" tabindex="-1">&nbsp;</button></div>`;
+      return `<div class="receipt-presets-row">${row1}</div><div class="receipt-presets-row">${row2}</div><div class="receipt-presets-row receipt-presets-spacer" aria-hidden="true"></div>`;
     }
     return ADJUSTMENT_PRESETS[type].map(renderPresetChip).join("");
   };
