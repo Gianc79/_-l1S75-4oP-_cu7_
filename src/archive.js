@@ -3,7 +3,7 @@ import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
 import { $, assignUnit, esc, eurosFromInput, fmtQtyUnit, money, moneyPerUnit, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
-import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
+import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
 import { currentSavedListId } from "./history.js";
 import { openListMenu } from "./shoppingList.js";
 
@@ -178,10 +178,25 @@ function resolveActiveItemPricing(item, priceLookup, quickUnitMinor = null) {
   };
 }
 
-function buildReceiptSnapshot({ storeObj, storeId, itemsToArchive, purchaseDate, note, sourceListName, quickPricesMap, pMap, cMap, priceLookup }) {
+function buildReceiptSnapshot({ storeObj, storeId, itemsToArchive, purchaseDate, note, sourceListName, quickPricesMap, pMap, cMap, priceLookup, routes = [] }) {
   const ts = now();
   const storeNameSnapshot = storeObj ? storeObj.name : "Senza supermercato";
-  const snapshotItems = itemsToArchive.map((item) => {
+  const routePosition = (sid, catId) => {
+    if (!sid || !catId) return 99999;
+    return routes.find((r) => r.storeId === sid && r.categoryId === catId)?.position ?? 99999;
+  };
+  const orderedItems = [...itemsToArchive].sort((a, b) => {
+    const pa = pMap[a.productId], pb = pMap[b.productId];
+    if (!pa || !pb) return 0;
+    if (storeId) {
+      const d = routePosition(storeId, pa.categoryId) - routePosition(storeId, pb.categoryId);
+      if (d) return d;
+    }
+    return (cMap[pa.categoryId]?.name || "").localeCompare(cMap[pb.categoryId]?.name || "", "it", { sensitivity: "base" }) ||
+      (pa.name || "").localeCompare(pb.name || "", "it", { sensitivity: "base" });
+  });
+
+  const snapshotItems = orderedItems.map((item) => {
     const p = pMap[item.productId];
     const dp = productDisplayParts(p);
     const cat = p?.categoryId ? cMap[p.categoryId] : null;
@@ -206,14 +221,10 @@ function buildReceiptSnapshot({ storeObj, storeId, itemsToArchive, purchaseDate,
     };
   });
 
-  snapshotItems.sort((a, b) =>
-    a.categoryNameSnapshot.localeCompare(b.categoryNameSnapshot, "it", { sensitivity: "base" }) ||
-    a.productNameSnapshot.localeCompare(b.productNameSnapshot, "it", { sensitivity: "base" })
-  );
-
   return {
     id: uuid(),
     schemaVersion: 1,
+    itemsOrderedByList: true,
     archivedAt: ts,
     purchaseDate: purchaseDate || todayIsoDate(),
     storeId: storeId || null,
@@ -343,7 +354,7 @@ export async function openArchiveWindow(opts = {}) {
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche ricercare un articolo all'interno delle spese archiviate, per ricostruire lo storico del prezzo.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche ricercare un articolo all'interno delle spese archiviate, per ricostruirne lo storico del prezzo.</div>`);
   }
 
   const container = $("#archivedReceiptsContainer");
@@ -495,12 +506,13 @@ export async function openArchiveWindow(opts = {}) {
 }
 
 export async function openArchiveCurrentListModal() {
-  const [itemsRaw, products, cats, storesList, prices, curSavedId] = await Promise.all([
+  const [itemsRaw, products, cats, storesList, prices, routes, curSavedId] = await Promise.all([
     activeItems(),
     getAll("products"),
     getAll("categories"),
     getAll("stores"),
     getAll("productPrices"),
+    getAll("storeCategoryRoutes"),
     currentSavedListId()
   ]);
 
@@ -568,6 +580,26 @@ export async function openArchiveCurrentListModal() {
         <span>${groups[0].storeObj ? storeChipHtml(groups[0].storeObj, { className: "archive-store-chip", defaultBold: true }) : '<span class="it">Senza supermercato</span>'}</span>
       </div>`}
 
+    <div class="archive-card archive-meta-card">
+      <div class="field">
+        <div class="archive-note-label-row">
+          <label for="archiveNoteInput">Nome e Data spesa</label>
+          <span class="archive-picked-date" id="archivePickedDate" hidden></span>
+        </div>
+        <div class="archive-note-input-row">
+          <div class="name-box">
+            <input id="archiveNoteInput" type="text" maxlength="20" autocomplete="off">
+            <button type="button" class="name-no" id="archiveNoteNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
+            <button type="button" class="name-ok" id="archiveNoteOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button>
+          </div>
+          <div class="archive-cal-btn" id="archiveCalBtn" title="Scegli data spesa">
+            ${CALENDAR_ICON_SVG}
+            <input id="archivePurchaseDate" type="date" class="archive-cal-native-input" aria-label="Scegli data spesa">
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="archive-card" id="archiveScopeCard">
       <div class="archive-card-title">Articoli da includere</div>
       <label class="radio-opt archive-radio-opt" id="scopeAllOpt">
@@ -582,26 +614,6 @@ export async function openArchiveCurrentListModal() {
 
     <div id="archiveMissingBox" class="archive-card archive-warn-card" hidden></div>
 
-    <div class="archive-card archive-meta-card">
-      <div class="field">
-        <div class="archive-note-label-row">
-          <label for="archiveNoteInput">Nome spesa</label>
-          <span class="archive-picked-date" id="archivePickedDate" hidden></span>
-        </div>
-        <div class="archive-note-input-row">
-          <div class="name-box">
-            <input id="archiveNoteInput" type="text" maxlength="20" autocomplete="off">
-            <button type="button" class="name-no" id="archiveNoteNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
-            <button type="button" class="name-ok" id="archiveNoteOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button>
-          </div>
-          <div class="archive-cal-btn" title="Scegli data spesa">
-            ${CALENDAR_ICON_SVG}
-            <input id="archivePurchaseDate" type="date" class="archive-cal-native-input" aria-label="Scegli data spesa">
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div id="archiveLiveSummary" class="archive-live-summary"></div>
   </div>`;
 
@@ -612,6 +624,33 @@ export async function openArchiveCurrentListModal() {
 
     if (!chosenGroups.length) {
       showToast("Nessun articolo selezionato da archiviare.");
+      return;
+    }
+
+    const noteEl = $("#archiveNoteInput");
+    const dateEl = $("#archivePurchaseDate");
+    const pickedEl = $("#archivePickedDate");
+    const calBtnEl = $("#archiveCalBtn");
+    const rawNote = (noteEl?.value || "").trim().slice(0, 20);
+    const rawDate = (dateEl?.value || "").trim();
+    const missingNote = !rawNote;
+    const missingDate = !rawDate;
+
+    if (missingNote || missingDate) {
+      if (missingNote && noteEl) {
+        noteEl.value = "";
+        noteEl.placeholder = "Nome mancante";
+        noteEl.classList.add("invalid", "is-missing");
+      }
+      if (missingDate) {
+        if (pickedEl) {
+          pickedEl.textContent = "Data mancante";
+          pickedEl.classList.add("is-missing");
+          pickedEl.hidden = false;
+        }
+        calBtnEl?.classList.add("invalid");
+      }
+      $("#modalRoot .archive-meta-card")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
       return;
     }
 
@@ -636,8 +675,8 @@ export async function openArchiveCurrentListModal() {
       if (!yes) return;
     }
 
-    const purchaseDate = ($("#archivePurchaseDate")?.value || "").trim() || todayIsoDate();
-    const note = ($("#archiveNoteInput")?.value || "").trim().slice(0, 20);
+    const purchaseDate = rawDate;
+    const note = rawNote;
 
     // Optionally persist quick prices to catalog (productPrices & productStores)
     if (saveQuickPricesToCatalog && quickPricesMap.size > 0) {
@@ -682,7 +721,8 @@ export async function openArchiveCurrentListModal() {
         quickPricesMap,
         pMap,
         cMap,
-        priceLookup
+        priceLookup,
+        routes
       })
     );
 
@@ -864,6 +904,11 @@ export async function openArchiveCurrentListModal() {
   const noteInp = $("#archiveNoteInput");
   const noteBox = noteInp?.closest(".name-box");
   let confirmedNoteVal = "";
+  const clearNoteMissing = () => {
+    if (!noteInp) return;
+    noteInp.classList.remove("invalid", "is-missing");
+    noteInp.placeholder = "";
+  };
   const syncNoteDirty = () => {
     if (!noteInp || !noteBox) return;
     noteBox.classList.toggle("dirty", noteInp.value !== confirmedNoteVal);
@@ -871,11 +916,13 @@ export async function openArchiveCurrentListModal() {
   if (noteInp && noteBox) {
     noteInp.addEventListener("input", () => {
       if (noteInp.value.length > 20) noteInp.value = noteInp.value.slice(0, 20);
+      if (noteInp.value.trim()) clearNoteMissing();
       syncNoteDirty();
     });
     $("#archiveNoteNo")?.addEventListener("mousedown", (e) => e.preventDefault());
     $("#archiveNoteNo")?.addEventListener("click", () => {
       noteInp.value = confirmedNoteVal;
+      if (noteInp.value.trim()) clearNoteMissing();
       syncNoteDirty();
       noteInp.blur();
       releaseModalKeyboard();
@@ -884,6 +931,7 @@ export async function openArchiveCurrentListModal() {
     const confirmArchiveNote = () => {
       confirmedNoteVal = noteInp.value.trim().slice(0, 20);
       noteInp.value = confirmedNoteVal;
+      if (confirmedNoteVal) clearNoteMissing();
       syncNoteDirty();
       noteInp.blur();
       releaseModalKeyboard();
@@ -896,6 +944,7 @@ export async function openArchiveCurrentListModal() {
       } else if (e.key === "Escape") {
         e.preventDefault();
         noteInp.value = confirmedNoteVal;
+        if (noteInp.value.trim()) clearNoteMissing();
         syncNoteDirty();
         noteInp.blur();
         releaseModalKeyboard();
@@ -905,15 +954,20 @@ export async function openArchiveCurrentListModal() {
 
   const dateInp = $("#archivePurchaseDate");
   const pickedDateEl = $("#archivePickedDate");
+  const calBtn = $("#archiveCalBtn");
   const syncPickedDate = () => {
     if (!pickedDateEl || !dateInp) return;
     const v = (dateInp.value || "").trim();
     if (v) {
       pickedDateEl.textContent = fmtIsoDate(v);
+      pickedDateEl.classList.remove("is-missing");
       pickedDateEl.hidden = false;
+      calBtn?.classList.remove("invalid");
     } else {
       pickedDateEl.textContent = "";
+      pickedDateEl.classList.remove("is-missing");
       pickedDateEl.hidden = true;
+      calBtn?.classList.remove("invalid");
     }
   };
   dateInp?.addEventListener("click", () => {
@@ -937,7 +991,24 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   const t = computeReceiptTotals(currentReceipt);
   const dt = fmtIsoDate(currentReceipt.purchaseDate, currentReceipt.archivedAt);
   const adjustments = Array.isArray(currentReceipt.adjustments) ? currentReceipt.adjustments : [];
-  const items = Array.isArray(currentReceipt.items) ? currentReceipt.items : [];
+  let items = Array.isArray(currentReceipt.items) ? currentReceipt.items : [];
+  if (!currentReceipt.itemsOrderedByList && items.length > 1) {
+    const routes = currentReceipt.storeId ? await getAll("storeCategoryRoutes") : [];
+    const routePosition = (sid, catId) => {
+      if (!sid || !catId) return 99999;
+      return routes.find((r) => r.storeId === sid && r.categoryId === catId)?.position ?? 99999;
+    };
+    items = [...items].sort((a, b) => {
+      if (currentReceipt.storeId) {
+        const d = routePosition(currentReceipt.storeId, a.categoryId) - routePosition(currentReceipt.storeId, b.categoryId);
+        if (d) return d;
+      }
+      const ca = a.categoryId ? (a.categoryNameSnapshot || "") : "";
+      const cb = b.categoryId ? (b.categoryNameSnapshot || "") : "";
+      return ca.localeCompare(cb, "it", { sensitivity: "base" }) ||
+        (a.productNameSnapshot || "").localeCompare(b.productNameSnapshot || "", "it", { sensitivity: "base" });
+    });
+  }
   let adjType = detailState.adjType === "deduct" ? "deduct" : "add";
   let selectedPreset = "";
 
@@ -989,7 +1060,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
           <span class="saved-list-title">Aggiunte e detrazioni allo scontrino</span>
         </div>
       </div>
-      <div class="receipt-tabs-wrap">
+      <div class="receipt-tabs-wrap ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="receiptTabsWrap">
         <div class="receipt-tabs-bar" role="tablist" aria-label="Tipo voce scontrino">
           <button type="button" role="tab" aria-selected="${adjType === "add" ? "true" : "false"}" class="receipt-tab-btn is-add${adjType === "add" ? " active" : ""}" data-adj-type="add">+ Aggiunte</button>
           <button type="button" role="tab" aria-selected="${adjType === "deduct" ? "true" : "false"}" class="receipt-tab-btn is-deduct${adjType === "deduct" ? " active" : ""}" data-adj-type="deduct">\u2212 Detrazioni</button>
@@ -1024,23 +1095,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     </div>
   </div>`;
 
-  modal("Dettaglio scontrino", body, [
-    { label: "Indietro", class: "btn-plain", action: () => { state.currentModal = null; state.currentModalKeep = false; openArchiveWindow(archiveOpts); } },
-    { label: "Elimina", class: "btn-danger", action: async () => {
-      const yes = await confirmDialog(
-        "Elimina scontrino",
-        `Lo scontrino di <strong>${esc(currentReceipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente. Procedere comunque?`,
-        "Elimina",
-        { overlay: true, cancelFirst: true, confirmClass: "btn-danger", themed: true, backdropClose: false }
-      );
-      if (!yes) return;
-      await delOne("archivedReceipts", currentReceipt.id);
-      state.currentModal = null;
-      state.currentModalKeep = false;
-      await openArchiveWindow(archiveOpts);
-      showToast("Scontrino eliminato");
-    } }
-  ], {
+  modal("Dettaglio scontrino", body, [], {
     closeButton: true,
     backdropClose: false,
     alignTop: true,
@@ -1127,12 +1182,15 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   };
   bindPresetChips();
 
+  const tabsWrap = $("#receiptTabsWrap");
   root.querySelectorAll("[data-adj-type]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const nextType = btn.dataset.adjType === "deduct" ? "deduct" : "add";
       if (nextType === adjType) return;
       adjType = nextType;
       selectedPreset = "";
+      tabsWrap?.classList.toggle("is-add", adjType === "add");
+      tabsWrap?.classList.toggle("is-deduct", adjType === "deduct");
       root.querySelectorAll("[data-adj-type]").forEach((b) => {
         const isAct = b.dataset.adjType === adjType;
         b.classList.toggle("active", isAct);
@@ -1241,6 +1299,9 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   if (adjRecordsEl) {
     bindSwipeDelete(adjRecordsEl, "[data-adj-card-row]", async (row) => {
       const adjId = row.dataset.adjCardRow;
+      const removedIdx = adjustments.findIndex((a) => a.id === adjId);
+      if (removedIdx === -1) return false;
+      const removedAdj = adjustments[removedIdx];
       const updated = {
         ...currentReceipt,
         adjustments: adjustments.filter((a) => a.id !== adjId),
@@ -1251,7 +1312,27 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       state.currentModal = null;
       state.currentModalKeep = false;
       await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
-      showToast("Voce rimossa");
+      showUndoToast("Voce rimossa", async () => {
+        const latest = await getOne("archivedReceipts", currentReceipt.id);
+        if (!latest) return;
+        const curAdjs = Array.isArray(latest.adjustments) ? [...latest.adjustments] : [];
+        if (!curAdjs.some((a) => a.id === removedAdj.id)) {
+          const insertAt = Math.max(0, Math.min(removedIdx, curAdjs.length));
+          curAdjs.splice(insertAt, 0, removedAdj);
+          await putOne("archivedReceipts", { ...latest, adjustments: curAdjs, updatedAt: now() });
+        }
+        if ($("#receiptItemsList")) {
+          const curModal = $("#modalRoot .modal");
+          const curScroll = curModal ? curModal.scrollTop : keepScroll;
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: curScroll });
+        } else if ($("#archivedReceiptsContainer")) {
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          await openArchiveWindow(archiveOpts);
+        }
+      });
     });
   }
 }
