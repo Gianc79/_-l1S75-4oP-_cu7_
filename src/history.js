@@ -327,6 +327,7 @@ export async function importBackup(file) {
     const payload = JSON.parse(await file.text());
     if (payload.format !== "personal-shopping-assistant" || payload.formatVersion !== 1 || !payload.data) throw new Error("Formato backup non riconosciuto.");
     if (!Array.isArray(payload.data.savedLists)) payload.data.savedLists = [];
+    if (!Array.isArray(payload.data.archivedReceipts)) payload.data.archivedReceipts = [];
     for (const name of stores) {
       if (!Array.isArray(payload.data[name])) throw new Error("Il backup non contiene tutti gli archivi richiesti.");
     }

@@ -44,6 +44,12 @@ export async function openDB() {
       create("tombstones", { keyPath: "id" }, [["entity", ["entityType", "entityId"], { unique: true }], ["revision", "revision"], ["deletedAt", "deletedAt"]]);
       create("meta", { keyPath: "key" });
       create("savedLists", { keyPath: "id" });
+      create("archivedReceipts", { keyPath: "id" }, [
+        ["archivedAt", "archivedAt"],
+        ["purchaseDate", "purchaseDate"],
+        ["storeId", "storeId"],
+        ["storeDate", ["storeId", "purchaseDate"]]
+      ]);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
