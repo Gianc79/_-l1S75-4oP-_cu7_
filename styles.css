@@ -2068,6 +2068,34 @@ input[type=search].search-input:placeholder-shown,
   .list-primary-action-row #addItemBtn{padding:10px 6px;gap:4px}
   .list-primary-action-row #addItemBtn .btn-plus-ico{width:18px;height:18px;flex:0 0 18px}
 }
+/* Schermata Lista: restyling smart della barra riepilogo inferiore (#listFooter) */
+#listFooter.sticky-list-footer{padding:8px 13px 10px;border-radius:18px;border:1.5px solid #bdd4eb;background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(241,247,254,.97) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 8px 24px rgba(14,48,84,.18),0 2px 6px rgba(14,48,84,.10);transition:border-color .3s ease,box-shadow .3s ease}
+#listFooter.sticky-list-footer::before{left:0;top:0;bottom:0;max-width:100%;border-radius:0;background:linear-gradient(90deg,rgba(21,148,71,.11) 0%,rgba(34,197,94,.21) 100%);transition:width .45s cubic-bezier(.22,1,.36,1)}
+#listFooter.sticky-list-footer::after{content:"";position:absolute;left:0;bottom:0;height:3.5px;width:var(--p,0%);background:linear-gradient(90deg,#15803d 0%,#16a34a 65%,#22c55e 100%);box-shadow:0 0 8px rgba(22,163,74,.45);transition:width .45s cubic-bezier(.22,1,.36,1);pointer-events:none}
+#listFooter.sticky-list-footer.is-complete{border-color:#26a65b;box-shadow:inset 0 1px 0 rgba(255,255,255,.92),0 8px 24px rgba(14,107,58,.24),0 2px 6px rgba(14,107,58,.12)}
+#listFooter.sticky-list-footer.is-complete::before{border-radius:0;background:linear-gradient(90deg,rgba(21,148,71,.15) 0%,rgba(34,197,94,.24) 100%)}
+#listFooter .footer-inner{position:relative;z-index:1;gap:10px}
+#listFooter .counter-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:12px;background:linear-gradient(135deg,#19599c 0%,#123e6d 100%);color:#ffffff;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 3px 8px rgba(14,48,84,.24);flex:0 0 auto;transition:background .3s ease,box-shadow .3s ease}
+#listFooter .counter-ico{width:18px;height:18px;flex:0 0 18px;color:#ffd447;display:block;transition:color .3s ease}
+#listFooter .counter{background:transparent;color:#ffffff;padding:0;border-radius:0;font-size:15.5px;font-weight:850;line-height:1;letter-spacing:.2px;font-variant-numeric:tabular-nums}
+#listFooter.sticky-list-footer.is-complete .counter-pill{background:linear-gradient(135deg,#1ca655 0%,#127a3d 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 3px 10px rgba(14,107,58,.30)}
+#listFooter.sticky-list-footer.is-complete .counter-ico{color:#ffffff}
+#listFooter.sticky-list-footer.is-complete .counter{background:transparent;color:#ffffff}
+#listFooter .footer-total-col{text-align:right;min-width:0;display:flex;flex-direction:column;align-items:flex-end}
+#listFooter .total-label{font-size:10px;font-weight:800;letter-spacing:.65px;text-transform:uppercase;color:#56708a;line-height:1.1;margin-bottom:2px}
+#listFooter .total-value{font-size:17.5px;font-weight:900;line-height:1.15;color:#103b66;font-variant-numeric:tabular-nums;white-space:nowrap}
+#listFooter .total-progress{color:#128040;font-weight:850}
+#listFooter .total-progress-sep{color:#94a8bc;font-weight:600;margin:0 4px}
+#listFooter .total-missing{font-size:10.5px;font-weight:750;line-height:1.2;color:#9a5b00;background:rgba(255,224,71,.34);border:1px solid rgba(214,162,0,.40);padding:1px 6px;border-radius:6px;margin-top:3px;white-space:nowrap}
+#listFooter .total-missing:empty{display:none}
+@media(max-width:360px){
+  #listFooter.sticky-list-footer{padding:7px 10px 9px}
+  #listFooter .counter-pill{padding:6px 10px;gap:5px;border-radius:11px}
+  #listFooter .counter-ico{width:16px;height:16px;flex-basis:16px}
+  #listFooter .counter{font-size:14.5px}
+  #listFooter .total-value{font-size:16px}
+  #listFooter .total-progress-sep{margin:0 3px}
+}
 
 
 
