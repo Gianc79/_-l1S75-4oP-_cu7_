@@ -57,7 +57,7 @@ export async function renderCategories() {
       d.classList.add("dim");
     }
     d.onclick = async () => {
-      if (!await confirmDialog("Elimina tutti i reparti", "Tutti i reparti verranno rimossi definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D.<br>Procedere comunque?", "Elimina tutti", { backdropClose: false })) return;
+      if (!await confirmDialog("Elimina tutti i reparti", "Tutti i reparti verranno rimossi definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D. Procedere comunque?", "Elimina tutti", { backdropClose: false })) return;
       const prods = await getAll("products"), routes = await getAll("storeCategoryRoutes"), tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "tombstones"], "readwrite");
       for (const c of cats) {
         tx.objectStore("categories").delete(c.id);

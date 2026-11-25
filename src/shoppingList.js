@@ -497,7 +497,7 @@ export async function clearOrReset(reset) {
   }
   const yes = await confirmDialog(
     reset ? "Inizializza spesa" : "Svuota Lista spesa",
-    reset ? "Tutti gli articoli della spesa corrente verranno deflaggati.<br>Procedere comunque?" : "Tutti gli articoli della spesa corrente verranno rimossi dalla lista.<br>Procedere comunque?",
+    reset ? "Tutti gli articoli della spesa corrente verranno deflaggati. Procedere comunque?" : "Tutti gli articoli della spesa corrente verranno rimossi dalla lista. Procedere comunque?",
     reset ? "Inizializza" : "Svuota",
     { closeButton: false, backdropClose: false, cancelFirst: reset, confirmClass: reset ? "btn-primary" : "btn-danger" }
   );
