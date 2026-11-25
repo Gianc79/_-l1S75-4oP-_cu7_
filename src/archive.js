@@ -344,7 +344,7 @@ export async function openArchiveWindow(opts = {}) {
     <div class="archive-filter-sticky">
       <div class="archive-filter-bar">
         ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey })}
-        <input id="archiveSearchInput" type="search" class="search-input" placeholder="Cerca articolo\u2026" value="${esc(searchQuery)}" autocomplete="off" aria-label="Cerca articolo nell'archivio spese">
+        <input id="archiveSearchInput" type="search" class="search-input" maxlength="25" placeholder="Cerca articolo\u2026" value="${esc((searchQuery || "").slice(0, 25))}" autocomplete="off" aria-label="Cerca articolo nell'archivio spese">
       </div>
     </div>` : "";
 
@@ -487,7 +487,7 @@ export async function openArchiveWindow(opts = {}) {
       const dt = fmtIsoDate(rec.purchaseDate, rec.archivedAt);
       const yes = await confirmDialog(
         "Elimina scontrino",
-        `Lo scontrino di <strong>${esc(rec.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente. Procedere comunque?`,
+        `Lo scontrino di <strong>${esc(rec.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
         "Elimina",
         { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow({ storeFilter: selectedStoreKey, searchQuery }) }
       );
@@ -522,6 +522,7 @@ export async function openArchiveWindow(opts = {}) {
       paintReceipts();
     });
     searchInp.addEventListener("input", () => {
+      if (searchInp.value.length > 25) searchInp.value = searchInp.value.slice(0, 25);
       searchQuery = searchInp.value;
       paintReceipts();
     });
@@ -1178,7 +1179,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
               </div>
               <span class="receipt-adj-eur">\u20AC</span>
             </div>
-            <button type="button" class="btn btn-primary btn-small" id="addAdjBtn">Aggiungi</button>
+            <button type="button" class="btn btn-primary btn-small" id="addAdjBtn" disabled>Aggiungi</button>
           </div>
           <div class="receipt-adj-records" id="receiptAdjRecords"${adjCardRowsHtml ? "" : " hidden"}>${adjCardRowsHtml}</div>
         </div>
@@ -1205,7 +1206,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       action: async () => {
         const yes = await confirmDialog(
           "Elimina scontrino",
-          `Lo scontrino di <strong>${esc(currentReceipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente. Procedere comunque?`,
+          `Lo scontrino di <strong>${esc(currentReceipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
           "Elimina",
           { overlay: true, closeButton: false, backdropClose: false }
         );
@@ -1302,6 +1303,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
 
   const amtInp = $("#adjAmountInput");
   const amtBox = amtInp?.closest(".name-box");
+  const addAdjBtn = $("#addAdjBtn");
   const presetsWrap = $("#receiptAdjPresets");
   const adjRecordsEl = $("#receiptAdjRecords");
   const adjSignEl = $("#adjSignIndicator");
@@ -1354,8 +1356,9 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     amtBox.classList.toggle("dirty", !amtInp.disabled && amtInp.value !== confirmedAmtVal);
   };
   const syncAdjAmountEnabled = (clearValue = false) => {
-    if (!amtInp) return;
     const enabled = !!selectedPreset;
+    if (addAdjBtn) addAdjBtn.disabled = !enabled;
+    if (!amtInp) return;
     amtInp.disabled = !enabled;
     amtInp.readOnly = !enabled;
     amtInp.tabIndex = enabled ? 0 : -1;
@@ -1479,6 +1482,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   }
 
   const commitAdjustment = async () => {
+    if (addAdjBtn?.disabled) return;
     const label = selectedPreset.trim();
     const amtRaw = (amtInp?.value || "").trim();
     if (!label) {

@@ -144,7 +144,7 @@ export function openNewCategoryWindow(onClose, opts = {}) {
 
 export async function openCategoryProductPicker(id) {
   const [all, cmap] = await Promise.all([allProductsSorted(), categoryMap()]);
-  modal("Aggiungi articolo", '<div class="pick-sticky-head"><button type="button" class="btn btn-primary btn-block" id="pickNew" style="margin-bottom:10px">\uFF0B Crea nuovo articolo</button><div class="field" style="margin-bottom:0"><input id="pickSearch" type="search" class="search-input" placeholder="Cerca articolo\u2026" autocomplete="off"></div></div><div id="pickList"></div>', [], { closeButton: true, backdropClose: false, keepModalOnClose: true, alignTop: true, themed: true, onClose: () => openCategoryForm(id, true) });
+  modal("Aggiungi articolo", '<div class="pick-sticky-head"><button type="button" class="btn btn-primary btn-block" id="pickNew" style="margin-bottom:10px">\uFF0B Crea nuovo articolo</button><div class="field" style="margin-bottom:0"><input id="pickSearch" type="search" class="search-input" maxlength="25" placeholder="Cerca articolo\u2026" autocomplete="off"></div></div><div id="pickList"></div>', [], { closeButton: true, backdropClose: false, keepModalOnClose: true, alignTop: true, themed: true, onClose: () => openCategoryForm(id, true) });
   const inp = $("#pickSearch");
   const paint = () => {
     const f = filterBySearch(all, inp.value, productSearchText);
@@ -176,7 +176,10 @@ export async function openCategoryProductPicker(id) {
     }));
   };
   attachSearchClear(inp, paint);
-  inp.addEventListener("input", paint);
+  inp.addEventListener("input", () => {
+    if (inp.value.length > 25) inp.value = inp.value.slice(0, 25);
+    paint();
+  });
   paint();
   $("#pickNew").addEventListener("click", () => {
     state.currentModal = null;
@@ -198,7 +201,7 @@ export async function openCategoryForm(id, keep = false) {
   if (!c) return;
   const all = (await allProductsSorted()).filter((p) => p.categoryId === id);
   const addProdIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3.5" width="13.5" height="15.5" rx="3" fill="#2d6ea9"/><path d="M6 7.5h7.5M6 11h5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="17.2" r="5.2" fill="#159447" stroke="#ffffff" stroke-width="1.3"/><path d="M17.2 14.5v5.4M14.5 17.2h5.4" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>';
-  const body = `<div class="field"><label for="categoryName">Nome <span class="label-hint">(max 25 caratteri)</span></label><div class="name-box"><input id="categoryName" type="text" maxlength="25" value="${esc(c.name)}" placeholder="Es. SALUMI" autocomplete="off" autocapitalize="characters"><button type="button" class="name-no" id="categoryNameNo" aria-label="Ripristina il nome precedente" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="categoryNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><div class="field" style="margin-bottom:8px"><div class="label-row"><label>Articoli in questo reparto <span class="count" id="catMembersCount"></span></label><button type="button" class="create-product-btn-square cat-add-product-btn" id="catAddProduct" aria-label="Aggiungi articolo" title="Aggiungi articolo">${addProdIcon}</button></div></div><div class="field"><input id="catMembersSearch" type="search" class="search-input" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div><div id="catMembers"></div>`;
+  const body = `<div class="field"><label for="categoryName">Nome <span class="label-hint">(max 25 caratteri)</span></label><div class="name-box"><input id="categoryName" type="text" maxlength="25" value="${esc(c.name)}" placeholder="Es. SALUMI" autocomplete="off" autocapitalize="characters"><button type="button" class="name-no" id="categoryNameNo" aria-label="Ripristina il nome precedente" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="categoryNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><div class="field" style="margin-bottom:8px"><div class="label-row"><label>Articoli in questo reparto <span class="count" id="catMembersCount"></span></label><button type="button" class="create-product-btn-square cat-add-product-btn" id="catAddProduct" aria-label="Aggiungi articolo" title="Aggiungi articolo">${addProdIcon}</button></div></div><div class="field"><input id="catMembersSearch" type="search" class="search-input" maxlength="25" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div><div id="catMembers"></div>`;
   modal("Dettagli reparto", body, [], { closeButton: true, backdropClose: false, alignTop: true, themed: true, onClose: async () => {
     await renderCategories();
     window.scrollTo(0, state.catScrollY);
@@ -256,7 +259,7 @@ export async function openCategoryForm(id, keep = false) {
     releaseModalKeyboard();
   });
   const list = $("#catMembers"), ms = $("#catMembersSearch");
-  ms.value = state.catDetailQuery;
+  ms.value = (state.catDetailQuery || "").slice(0, 25);
   const paint = () => {
     state.catDetailQuery = ms.value;
     const f = filterBySearch(all, ms.value, productSearchText);
@@ -279,7 +282,10 @@ export async function openCategoryForm(id, keep = false) {
     });
   };
   attachSearchClear(ms, paint);
-  ms.addEventListener("input", paint);
+  ms.addEventListener("input", () => {
+    if (ms.value.length > 25) ms.value = ms.value.slice(0, 25);
+    paint();
+  });
   paint();
   $("#catAddProduct").addEventListener("click", () => openCategoryProductPicker(id));
 }

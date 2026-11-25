@@ -49,7 +49,7 @@ export async function renderProducts() {
     return { storeOpts, catOpts, showAllStores: storeVal === "all", showAllCats: catVal === "all", allStoresDisabled: storeOpts.every((o) => o.disabled), allCatsDisabled: catOpts.every((o) => o.disabled) };
   };
   let curOpts = computeOpts();
-  $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Articoli</h1><span class="title-count-badge" id="productsCount">${products.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllProductsBtn" aria-label="Elimina tutti gli articoli" title="Elimina tutti gli articoli">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi articoli.<br>Per eliminare un singolo articolo, scorri il relativo riquadro verso destra.")}<div class="sticky-action-wrap"><button class="btn btn-primary btn-block" id="newProductBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo articolo</span></button></div><div class="prod-filters-box prod-filters-split"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear" id="resetProdFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid">${singleFilterHtml({ id: "prodFilterStore", allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: pv.store, allDisabled: curOpts.allStoresDisabled, searchMaxLength: 20, searchUppercase: true })}${singleFilterHtml({ id: "prodFilterCat", allLabel: "Tutti i reparti", options: curOpts.catOpts, selectedValue: pv.cat, allDisabled: curOpts.allCatsDisabled, searchMaxLength: 25, searchUppercase: true })}</div></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="productsSearch" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div></div><div id="productsList"></div>`;
+  $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Articoli</h1><span class="title-count-badge" id="productsCount">${products.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllProductsBtn" aria-label="Elimina tutti gli articoli" title="Elimina tutti gli articoli">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi articoli.<br>Per eliminare un singolo articolo, scorri il relativo riquadro verso destra.")}<div class="sticky-action-wrap"><button class="btn btn-primary btn-block" id="newProductBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo articolo</span></button></div><div class="prod-filters-box prod-filters-split"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear" id="resetProdFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid">${singleFilterHtml({ id: "prodFilterStore", allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: pv.store, allDisabled: curOpts.allStoresDisabled, searchMaxLength: 20, searchUppercase: true })}${singleFilterHtml({ id: "prodFilterCat", allLabel: "Tutti i reparti", options: curOpts.catOpts, selectedValue: pv.cat, allDisabled: curOpts.allCatsDisabled, searchMaxLength: 25, searchUppercase: true })}</div></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="productsSearch" maxlength="25" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div></div><div id="productsList"></div>`;
   const d = $("#delAllProductsBtn");
   const scopeOf = () => products.filter((x) => matchesStore(x, pv.store) && matchesCat(x, pv.cat));
   const paint = () => {
@@ -101,9 +101,13 @@ export async function renderProducts() {
       showToast("Articolo eliminato");
     });
   };
-  $("#productsSearch").value = pv.q;
-  $("#productsSearch").addEventListener("input", paint);
-  attachSearchClear($("#productsSearch"), paint);
+  const productsSearchEl = $("#productsSearch");
+  productsSearchEl.value = (pv.q || "").slice(0, 25);
+  productsSearchEl.addEventListener("input", () => {
+    if (productsSearchEl.value.length > 25) productsSearchEl.value = productsSearchEl.value.slice(0, 25);
+    paint();
+  });
+  attachSearchClear(productsSearchEl, paint);
   wireSingleFilter("prodFilterStore", {
     searchMaxLength: 20,
     searchUppercase: true,
@@ -363,62 +367,14 @@ export async function openProductForm(productId, returnPage = "products", return
 
   let getEffectiveBrandVal = () => brandInp?.value || "";
   const saveAsNewBtn = productId ? $("#prodSaveAsNewBtn") : null;
-  const normalizePriceForSnap = (raw) => {
-    const t = String(raw || "").trim();
-    if (!t) return "";
-    const c = eurosFromInput(t);
-    return c !== null && !Number.isNaN(c) ? String(c) : t;
-  };
-  const normalizePackQtyForSnap = (raw, unit) => {
-    const t = String(raw || "").trim();
-    if (!t) return "";
-    const q = parseQty(t);
-    return packQtyValid(q, unit) ? formatPackQtyValue(q) : t;
-  };
-  const normalizePackPiecesForSnap = (raw) => {
-    const t = String(raw ?? "").trim();
-    if (!t) return "";
-    const n = parsePackPieces(t);
-    if (n === null || n === 0 || n === 1) return "";
-    return Number.isInteger(n) ? String(n) : t;
-  };
   const initialSnapshot = productId ? JSON.stringify({
     cat: p?.categoryId || "",
-    itemName: String(initFields.itemName || "").trim().replace(/\s+/g, " "),
-    brand: String(initFields.brand || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it"),
-    pack: initialPackaging,
-    pu: initialPackUnit,
-    pq: initialPackaging === "sfuso" ? "" : normalizePackQtyForSnap(initialPackQtyStr, initialPackUnit),
-    pp: initialPackaging === "confezione" && !isPiecePackUnit(initialPackUnit) ? normalizePackPiecesForSnap(initialPackPiecesStr) : "",
-    stores: ss.map((s) => {
-      const checked = assoc.includes(s.id);
-      const pr = prices.find((x) => x.productId === productId && x.storeId === s.id);
-      const priceVal = checked && pr ? String(pr.amountMinor) : "";
-      return `${s.id}:${checked ? 1 : 0}:${priceVal}`;
-    }).join("|")
+    desc: initialDescHtml
   }) : "";
-  const getProductFormSnapshot = () => {
-    const pack = packInp?.value || "confezione";
-    const pu = packUnitInp?.value || "kg";
-    const pq = pack === "sfuso" ? "" : normalizePackQtyForSnap(packQtyInp?.value, pu);
-    const pp = pack === "confezione" && !isPiecePackUnit(pu) ? normalizePackPiecesForSnap(packPiecesInp?.value) : "";
-    const storesSnap = [...$("#modalRoot").querySelectorAll("[data-store-check]")].map((cb) => {
-      const sid = cb.dataset.storeCheck;
-      const checked = !!cb.checked;
-      const priceVal = checked ? normalizePriceForSnap($("#price-" + sid)?.value) : "";
-      return `${sid}:${checked ? 1 : 0}:${priceVal}`;
-    }).join("|");
-    return JSON.stringify({
-      cat: $("#prodCategory")?.value || "",
-      itemName: String(itemNameInp?.value || "").trim().replace(/\s+/g, " "),
-      brand: String(getEffectiveBrandVal() || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it"),
-      pack,
-      pu,
-      pq,
-      pp,
-      stores: storesSnap
-    });
-  };
+  const getProductFormSnapshot = () => JSON.stringify({
+    cat: $("#prodCategory")?.value || "",
+    desc: buildDescPreviewHtml(itemNameInp?.value, getEffectiveBrandVal(), packQtyInp?.value, packUnitInp?.value, packInp?.value || "confezione", packPiecesInp?.value)
+  });
   const syncDirtyState = () => {
     if (!saveAsNewBtn) return;
     saveAsNewBtn.disabled = getProductFormSnapshot() === initialSnapshot;

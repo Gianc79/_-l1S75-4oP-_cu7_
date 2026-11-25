@@ -16,7 +16,7 @@ export const SWIPE_TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="cur
 export const TRASH_OFFICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.8h15"/><path d="M9.3 6.8V5.1A1.6 1.6 0 0 1 10.9 3.5h2.2a1.6 1.6 0 0 1 1.6 1.6v1.7"/><path d="M6.4 6.8l.9 12.1a1.8 1.8 0 0 0 1.8 1.6h5.8a1.8 1.8 0 0 0 1.8-1.6l.9-12.1"/><path d="M10 10.6v6.2M14 10.6v6.2"/></svg>';
 export const stores = ["categories", "products", "stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingLists", "shoppingListItems", "settings", "tombstones", "meta", "savedLists", "archivedReceipts"];
 export const PENCIL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z" fill="#f5a623" stroke="#8a4b00" stroke-width="1.2" stroke-linejoin="round"/></svg>';
-export const PROD_NAME_MAX = 24;
+export const PROD_NAME_MAX = 25;
 export const PROD_BRAND_MAX = 20;
 export const PROD_WEIGHT_UNITS = ["kg", "g"];
 export const PROD_VOLUME_UNITS = ["lt", "cl", "ml"];
