@@ -115,7 +115,30 @@ export const money = (cents) => new Intl.NumberFormat("it-IT", { style: "currenc
 
 export const assignUnit = (u) => u === "pz." ? "pz" : u;
 
-export const moneyPerUnit = (cents, unit) => `${((cents || 0) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} \u20AC/${assignUnit(unit)}`;
+export function isConfezionePackaging(pOrPackaging, unit = null) {
+  if (pOrPackaging && typeof pOrPackaging === "object") {
+    if (pOrPackaging.packaging === "sfuso") return false;
+    if (pOrPackaging.packaging === "confezione") return true;
+    const u = pOrPackaging.unit;
+    return !(u === "kg" || u === "lt" || u === "l" || u === "m");
+  }
+  if (pOrPackaging === "sfuso") return false;
+  if (pOrPackaging === "confezione") return true;
+  if (unit !== null) return !(unit === "kg" || unit === "lt" || unit === "l" || unit === "m");
+  return false;
+}
+
+export function displayUnit(pOrUnit, packaging = null) {
+  if (pOrUnit && typeof pOrUnit === "object") {
+    return isConfezionePackaging(pOrUnit) ? "Cf" : assignUnit(pOrUnit.unit);
+  }
+  if (packaging !== null) {
+    return packaging !== "sfuso" ? "Cf" : assignUnit(pOrUnit);
+  }
+  return assignUnit(pOrUnit);
+}
+
+export const moneyPerUnit = (cents, unitOrProduct, packaging = null) => `${((cents || 0) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} \u20AC/${displayUnit(unitOrProduct, packaging)}`;
 
 export const numFmt = (n) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 }).format(n);
 
@@ -203,7 +226,7 @@ export function salesUnitForPackaging(packaging, packUnit = "kg") {
 }
 
 export function storesDescFor(packaging, packUnit = "kg") {
-  if (packaging !== "sfuso") return "Attiva i supermercati e inserisci il prezzo per confezione (\u20AC/pz).";
+  if (packaging !== "sfuso") return "Attiva i supermercati e inserisci il prezzo per confezione (\u20AC/Cf).";
   if (isPiecePackUnit(packUnit)) return "Attiva i supermercati e inserisci il prezzo (\u20AC/pz).";
   if (isVolumePackUnit(packUnit)) return "Attiva i supermercati e inserisci il prezzo (\u20AC/lt).";
   if (isLengthPackUnit(packUnit)) return "Attiva i supermercati e inserisci il prezzo (\u20AC/m).";

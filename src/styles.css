@@ -1917,4 +1917,35 @@ input[type=search].search-input:placeholder-shown,
 #archiveScopeCard .archive-radio-opt input[type=radio]:checked{border-color:#174f86;background:#ffffff;box-shadow:none}
 #archiveScopeCard .archive-radio-opt input[type=radio]:checked::after{content:"";width:9px;height:9px;border-radius:50%;background:#174f86;box-shadow:none}
 
-
+/* v. 1.77 */
+/* Generale: icone cestino più leggere (no sfondo rosso) ed eleganti */
+.header-icon.trash-mini,.trash-mini{background:linear-gradient(180deg,#ffffff 0%,#f2f6fb 100%)!important;border:1px solid #c9d7e6!important;color:#4e6074!important;box-shadow:inset 0 1px 0 #ffffff,0 2px 0 #b8c9dc,0 4px 8px rgba(15,38,66,.10)!important}
+.header-icon.trash-mini:hover:not(:disabled),.trash-mini:hover:not(:disabled){color:#b42318!important;border-color:#d8b8b5!important;background:linear-gradient(180deg,#ffffff 0%,#fdf5f5 100%)!important}
+.header-icon.trash-mini:active:not(:disabled),.trash-mini:active:not(:disabled){background:linear-gradient(180deg,#f5f8fc 0%,#e7eff8 100%)!important;color:#9f1d14!important;box-shadow:inset 0 1px 2px rgba(15,38,66,.12),0 1px 0 #b8c9dc,0 2px 4px rgba(15,38,66,.08)!important}
+.trash-mini:disabled,.trash-mini.dim{background:linear-gradient(180deg,#ffffff 0%,#f4f7fa 100%)!important;border-color:#d8e2ec!important;color:#7c8da1!important;box-shadow:none!important;filter:none!important;opacity:.46}
+.trash-mini svg{width:21px;height:21px}
+.list-quick-icon.trash-mini svg{width:23px;height:23px}
+@media(max-width:430px){.list-quick-icon.trash-mini svg{width:22px;height:22px}}
+@media(max-width:360px){.list-quick-icon.trash-mini svg{width:20px;height:20px}}
+.row-trash{background:transparent!important;color:#5b6b7d!important}
+/* Finestre Carica lista, Salva con nome e Archivio spese: fascia blu sul titolo degli elenchi (stile Scontrino) */
+.saved-list-section.has-section-banner{overflow:hidden;padding-top:0}
+.list-section-banner{margin:0 -11px 2px;padding:10px 12px;background:linear-gradient(135deg,#174f86 0%,#123e6d 100%);border-bottom:1.5px solid #0e355c;border-radius:14.5px 14.5px 0 0;color:#ffffff;gap:8px}
+.list-section-banner .saved-list-head-left{gap:8px}
+.list-section-banner .saved-list-icon{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:rgba(255,255,255,.94);border:1px solid rgba(255,255,255,.65);color:#174f86;box-shadow:0 2px 5px rgba(8,28,54,.22)}
+.list-section-banner .saved-list-title{color:#ffffff;font-size:15px;font-weight:850;letter-spacing:.2px}
+.list-section-banner .title-count-badge{background:rgba(255,255,255,.20);color:#ffffff;border:1px solid rgba(255,255,255,.32);min-width:26px;height:24px;padding:0 7px;font-size:12.5px;font-weight:800}
+.list-section-banner .saved-full-badge{background:#ffe047;border-color:#e5bd00;color:#123e6d}
+.list-section-banner .trash-mini{width:34px;height:34px;flex:0 0 34px;border-radius:10px;background:rgba(255,255,255,.16)!important;border:1px solid rgba(255,255,255,.34)!important;color:#ffffff!important;box-shadow:0 2px 5px rgba(8,28,54,.16)!important}
+.list-section-banner .trash-mini svg{width:19px;height:19px}
+.list-section-banner .trash-mini:hover:not(:disabled){background:rgba(255,255,255,.24)!important;border-color:rgba(255,255,255,.52)!important;color:#ffffff!important}
+.list-section-banner .trash-mini:active:not(:disabled){background:rgba(255,255,255,.28)!important;color:#ffffff!important;box-shadow:inset 0 1px 2px rgba(8,28,54,.22)!important}
+.list-section-banner .trash-mini:disabled,.list-section-banner .trash-mini.dim{background:rgba(255,255,255,.10)!important;border-color:rgba(255,255,255,.20)!important;color:rgba(255,255,255,.65)!important;opacity:.5}
+/* Finestra Dettaglio scontrino: allineamento dx riga 2 Detrazioni, @[um] arancione e badge percentuale sconto */
+.receipt-presets-deduct-wrap{display:inline-flex;flex-direction:column;gap:6px;max-width:100%}
+.receipt-presets-row.is-deduct-row1{flex-wrap:nowrap;width:auto}
+.receipt-presets-row.is-deduct-row2{flex-wrap:nowrap;width:100%}
+.receipt-presets-row.is-deduct-row2 .receipt-preset-chip{flex:1 1 auto;text-align:center}
+@media(max-width:350px){.receipt-presets-row.is-deduct-row1 .receipt-preset-chip{padding:5px 8px;font-size:11.5px}}
+.receipt-item-name .desc-net-sfuso{color:#d45a00}
+.receipt-discount-badge{display:inline-flex;align-items:center;justify-content:center;background:#ffe047;color:#123e6d;font-weight:850;font-size:11px;line-height:1.15;padding:1px 5px;border-radius:5px;border:1px solid #e0b800;margin-left:3px;vertical-align:baseline}

@@ -2,7 +2,7 @@
 
 export const CART_CELEBRATION_DATA_URI = "./CarrelloSpesa.webp";
 export const APP_NAME = "SpesaSuMisura";
-export const APP_VERSION = "1.76";
+export const APP_VERSION = "1.77";
 export const MAX_SAVED_LISTS = 10;
 export const DB_NAME = "spesaSuMisuraDB";
 export const DB_VERSION = 3;
@@ -13,7 +13,7 @@ export const SVG_CHK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 
 export const SVG_CIRCLE_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 export const SVG_CIRCLED_PLUS = '<svg class="btn-plus-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="rgba(255,255,255,.15)" stroke="currentColor" stroke-width="2"/><path d="M12 7.8v8.4M7.8 12h8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 export const SWIPE_TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
-export const TRASH_OFFICE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 8h13l-1 12.2a1.5 1.5 0 0 1-1.5 1.3H8a1.5 1.5 0 0 1-1.5-1.3z" fill="#f1f5f9" stroke="#334155" stroke-width="1.15" stroke-linejoin="round"/><path d="M9.5 11v7.5M12 11v7.5M14.5 11v7.5" stroke="#64748b" stroke-width="1.3" stroke-linecap="round"/><rect x="4" y="5.2" width="16" height="2.8" rx="1" fill="#d3dce6" stroke="#334155" stroke-width="1.15"/><path d="M9.5 5.2V4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.2" fill="none" stroke="#f1f5f9" stroke-width="1.4" stroke-linecap="round"/></svg>';
+export const TRASH_OFFICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.8h15"/><path d="M9.3 6.8V5.1A1.6 1.6 0 0 1 10.9 3.5h2.2a1.6 1.6 0 0 1 1.6 1.6v1.7"/><path d="M6.4 6.8l.9 12.1a1.8 1.8 0 0 0 1.8 1.6h5.8a1.8 1.8 0 0 0 1.8-1.6l.9-12.1"/><path d="M10 10.6v6.2M14 10.6v6.2"/></svg>';
 export const stores = ["categories", "products", "stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingLists", "shoppingListItems", "settings", "tombstones", "meta", "savedLists", "archivedReceipts"];
 export const PENCIL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z" fill="#f5a623" stroke="#8a4b00" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 export const PROD_NAME_MAX = 24;

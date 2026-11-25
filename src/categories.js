@@ -1,7 +1,7 @@
 // Gestione reparti (categorie) e associazione articoli
 import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
-import { $, assignUnit, esc, filterBySearch, norm, now, productDisplayParts, productSearchText, uuid } from "./calculations.js";
+import { $, displayUnit, esc, filterBySearch, norm, now, productDisplayParts, productSearchText, uuid } from "./calculations.js";
 import { allCategoriesSorted, allProductsSorted, categoryMap, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, decorateInput, forceUppercaseInput, infoPop, modal, releaseModalKeyboard, showToast, showUndoToast, swipeWrap, updateNav } from "./ui.js";
 import { openProductForm } from "./products.js";
@@ -13,8 +13,9 @@ export async function renderCategories() {
   const [cats, products] = await Promise.all([allCategoriesSorted(), getAll("products")]);
   const counts = {};
   for (const pr of products) if (pr.categoryId) counts[pr.categoryId] = (counts[pr.categoryId] || 0) + 1;
-  $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Reparti</h1><span class="title-count-badge" id="catsCount">${cats.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllCatsBtn" aria-label="Elimina tutti i reparti" title="Elimina tutti i reparti">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi reparti.<br>Per eliminare un singolo reparto, scorri il relativo riquadro verso destra.<br>In ogni reparto andranno poi aggiunti i relativi articoli.")}<div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="newCategoryBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo reparto</span></button></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="catsSearch" placeholder="Cerca reparto\u2026" aria-label="Cerca reparto" autocomplete="off"></div></div><div id="categoriesList"></div>`;
+  $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Reparti</h1><span class="title-count-badge" id="catsCount">${cats.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllCatsBtn" aria-label="Elimina tutti i reparti" title="Elimina tutti i reparti">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi reparti.<br>Per eliminare un singolo reparto, scorri il relativo riquadro verso destra.<br>In ogni reparto andranno poi aggiunti i relativi articoli.")}<div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="newCategoryBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo reparto</span></button></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="catsSearch" placeholder="Cerca reparto\u2026" aria-label="Cerca reparto" autocomplete="off" autocapitalize="characters"></div></div><div id="categoriesList"></div>`;
   const list = $("#categoriesList"), inp = $("#catsSearch");
+  forceUppercaseInput(inp);
   const paint = () => {
     state.catsSearchQuery = inp.value;
     const filtered = filterBySearch(cats, state.catsSearchQuery, (c) => c.name);
@@ -43,7 +44,7 @@ export async function renderCategories() {
       showToast("Reparto eliminato");
     });
   };
-  inp.value = state.catsSearchQuery;
+  inp.value = String(state.catsSearchQuery || "").toLocaleUpperCase("it");
   inp.addEventListener("input", paint);
   attachSearchClear(inp, paint);
   paint();
@@ -151,7 +152,7 @@ export async function openCategoryProductPicker(id) {
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : "";
       const hasCat = !!(p.categoryId && cmap[p.categoryId]);
       const catLabel = hasCat ? cmap[p.categoryId].name : "Senza reparto";
-      return `<button type="button" class="pick-opt" data-pick="${p.id}" ${p.categoryId === id ? "disabled" : ""}><span class="item-top-row"><strong class="row-name">${dp.titleHtml}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}<span class="pick-sub${hasCat ? "" : " it"}">${esc(catLabel)}</span></button>`;
+      return `<button type="button" class="pick-opt" data-pick="${p.id}" ${p.categoryId === id ? "disabled" : ""}><span class="item-top-row"><strong class="row-name">${dp.titleHtml}</strong><span class="row-qty">${esc(displayUnit(p))}</span></span>${brandRow}<span class="pick-sub${hasCat ? "" : " it"}">${esc(catLabel)}</span></button>`;
     }).join("") || '<div class="empty">Nessun articolo trovato.</div>';
     $("#pickList").querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", async () => {
       const pr = all.find((x) => x.id === b.dataset.pick);
@@ -196,15 +197,17 @@ export async function openCategoryForm(id, keep = false) {
   if (!c) return;
   const all = (await allProductsSorted()).filter((p) => p.categoryId === id);
   const addProdIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3.5" width="13.5" height="15.5" rx="3" fill="#2d6ea9"/><path d="M6 7.5h7.5M6 11h5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="17.2" r="5.2" fill="#159447" stroke="#ffffff" stroke-width="1.3"/><path d="M17.2 14.5v5.4M14.5 17.2h5.4" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>';
-  const body = `<div class="field"><label for="categoryName">Nome <span class="label-hint">(max 25 caratteri)</span></label><div class="name-box"><input id="categoryName" type="text" maxlength="25" value="${esc(c.name)}" placeholder="Es. SALUMI" autocomplete="off"><button type="button" class="name-no" id="categoryNameNo" aria-label="Ripristina il nome precedente" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="categoryNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><div class="field" style="margin-bottom:8px"><div class="label-row"><label>Articoli in questo reparto <span class="count" id="catMembersCount"></span></label><button type="button" class="create-product-btn-square cat-add-product-btn" id="catAddProduct" aria-label="Aggiungi articolo" title="Aggiungi articolo">${addProdIcon}</button></div></div><div class="field"><input id="catMembersSearch" type="search" class="search-input" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div><div id="catMembers"></div>`;
+  const body = `<div class="field"><label for="categoryName">Nome <span class="label-hint">(max 25 caratteri)</span></label><div class="name-box"><input id="categoryName" type="text" maxlength="25" value="${esc(c.name)}" placeholder="Es. SALUMI" autocomplete="off" autocapitalize="characters"><button type="button" class="name-no" id="categoryNameNo" aria-label="Ripristina il nome precedente" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="categoryNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><div class="field" style="margin-bottom:8px"><div class="label-row"><label>Articoli in questo reparto <span class="count" id="catMembersCount"></span></label><button type="button" class="create-product-btn-square cat-add-product-btn" id="catAddProduct" aria-label="Aggiungi articolo" title="Aggiungi articolo">${addProdIcon}</button></div></div><div class="field"><input id="catMembersSearch" type="search" class="search-input" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div><div id="catMembers"></div>`;
   modal("Dettagli reparto", body, [], { closeButton: true, backdropClose: false, alignTop: true, themed: true, onClose: async () => {
     await renderCategories();
     window.scrollTo(0, state.catScrollY);
   } });
   const input = $("#categoryName"), box = input.closest(".name-box"), undo = $("#categoryNameNo"), okBtn = $("#categoryNameOk");
+  forceUppercaseInput(input);
   const showEditIcons = () => box.classList.add("dirty");
   const save = async () => {
-    const name = input.value.trim();
+    const name = input.value.trim().toLocaleUpperCase("it");
+    input.value = name;
     if (name === c.name) {
       box.classList.remove("dirty");
       return;
@@ -260,7 +263,7 @@ export async function openCategoryForm(id, keep = false) {
     list.innerHTML = f.map((p) => {
       const dp = productDisplayParts(p);
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : '<span class="row-brand is-empty" aria-hidden="true">&nbsp;</span>';
-      return swipeWrap(`<div class="list-row compact cat-member-row" data-cat-rm="${p.id}"><button type="button" class="row-button" data-cat-open="${p.id}"><span class="item-top-row"><span class="row-name">${dp.titleHtml}</span><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</button></div>`, "swipe-compact");
+      return swipeWrap(`<div class="list-row compact cat-member-row" data-cat-rm="${p.id}"><button type="button" class="row-button" data-cat-open="${p.id}"><span class="item-top-row"><span class="row-name">${dp.titleHtml}</span><span class="row-qty">${esc(displayUnit(p))}</span></span>${brandRow}</button></div>`, "swipe-compact");
     }).join("") || `<div class="empty">${all.length ? "Nessun articolo trovato." : "Nessun articolo ancora abbinato."}</div>`;
     list.querySelectorAll("[data-cat-open]").forEach((b) => b.addEventListener("click", () => openProductForm(b.dataset.catOpen, "categoryDetail", id)));
     bindSwipeDelete(list, "[data-cat-rm]", async (row) => {

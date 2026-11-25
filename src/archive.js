@@ -1,7 +1,7 @@
 // Archivio spese (scontrini immutabili), aggiunte/detrazioni cassa e riepilogo risparmio
 import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
-import { $, assignUnit, esc, eurosFromInput, fmtQtyUnit, money, moneyPerUnit, norm, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
+import { $, assignUnit, displayUnit, esc, eurosFromInput, extractProductFields, fmtQtyUnit, money, moneyPerUnit, norm, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
 import { currentSavedListId } from "./history.js";
@@ -210,6 +210,7 @@ function buildReceiptSnapshot({ storeObj, storeId, itemsToArchive, purchaseDate,
       categoryId: p?.categoryId || null,
       categoryNameSnapshot: cat?.name || "Senza reparto",
       unitSnapshot: p?.unit || "pz",
+      packagingSnapshot: p?.packaging || extractProductFields(p).packaging,
       storeId: storeId || null,
       storeNameSnapshot,
       quantity: Number(item.quantity),
@@ -250,17 +251,35 @@ function sortReceiptsDesc(list) {
   });
 }
 
+function receiptItemDisplayUnit(it) {
+  if (it?.packagingSnapshot === "confezione") return "Cf";
+  if (it?.packagingSnapshot === "sfuso") return assignUnit(it.unitSnapshot || "pz");
+  const u = assignUnit(it?.unitSnapshot || "pz");
+  if (u !== "pz") return u;
+  if (/@(?:kg|g|lt|l|cl|ml|cm|m|pz\.?)(?=\s|$)/i.test(String(it?.productNameSnapshot || ""))) return "pz";
+  return "Cf";
+}
+
+function formatReceiptItemNameHtml(name) {
+  return esc(name).replace(/(@(?:kg|g|lt|l|cl|ml|cm|m|pz\.?))(?=\s|$)/gi, '<span class="desc-net-sfuso">$1</span>');
+}
+
 function renderReceiptItemRowHtml(it, opts = {}) {
-  const qtyText = `${fmtQtyUnit(it.quantity, it.unitSnapshot)} ${esc(assignUnit(it.unitSnapshot))}`;
+  const dispUnit = receiptItemDisplayUnit(it);
+  const qtyText = `${fmtQtyUnit(it.quantity, it.unitSnapshot)} ${esc(dispUnit)}`;
   const brandText = (it.productBrandSnapshot || "").trim();
   const brandHtml = brandText ? `<div class="row-brand receipt-item-brand">${esc(brandText)}</div>` : "";
   let unitPriceHtml = "";
   if (it.priceMissing || it.effectiveUnitPriceMinor === null || it.effectiveUnitPriceMinor === undefined) {
     unitPriceHtml = `<span class="receipt-item-nd">prezzo N/D</span>`;
   } else if (it.isPromo && it.listUnitPriceMinor !== null && it.listUnitPriceMinor !== undefined && it.listUnitPriceMinor !== it.effectiveUnitPriceMinor) {
-    unitPriceHtml = `<span class="receipt-item-unit-old">${moneyPerUnit(it.listUnitPriceMinor, it.unitSnapshot)}</span> <span class="receipt-item-unit-promo">${moneyPerUnit(it.effectiveUnitPriceMinor, it.unitSnapshot)}</span>`;
+    const discPct = it.listUnitPriceMinor > 0 && it.effectiveUnitPriceMinor < it.listUnitPriceMinor
+      ? Math.round(((it.listUnitPriceMinor - it.effectiveUnitPriceMinor) / it.listUnitPriceMinor) * 100)
+      : 0;
+    const discBadgeHtml = discPct > 0 ? ` <span class="receipt-discount-badge">${discPct}%</span>` : "";
+    unitPriceHtml = `<span class="receipt-item-unit-old">${moneyPerUnit(it.listUnitPriceMinor, dispUnit)}</span> <span class="receipt-item-unit-promo">${moneyPerUnit(it.effectiveUnitPriceMinor, dispUnit)}</span>${discBadgeHtml}`;
   } else {
-    unitPriceHtml = `<span class="receipt-item-unit">${moneyPerUnit(it.effectiveUnitPriceMinor, it.unitSnapshot)}</span>`;
+    unitPriceHtml = `<span class="receipt-item-unit">${moneyPerUnit(it.effectiveUnitPriceMinor, dispUnit)}</span>`;
   }
   const totalHtml = it.priceMissing ? '<span class="is-nd">N/D</span>' : money(it.lineTotalMinor);
   const extraClass = opts.extraClass ? ` ${opts.extraClass}` : "";
@@ -268,7 +287,7 @@ function renderReceiptItemRowHtml(it, opts = {}) {
   return `<div class="receipt-item-row${extraClass}"${dataAttr}>
     ${opts.topMetaHtml || ""}
     <div class="receipt-item-top">
-      <span class="receipt-item-name">${esc(it.productNameSnapshot)}</span>
+      <span class="receipt-item-name">${formatReceiptItemNameHtml(it.productNameSnapshot)}</span>
       <span class="receipt-item-qty">${qtyText}</span>
     </div>
     ${brandHtml}
@@ -332,8 +351,8 @@ export async function openArchiveWindow(opts = {}) {
       </button>
     </div>
     ${filterBarHtml}
-    <div class="saved-list-section">
-      <div class="saved-list-head">
+    <div class="saved-list-section has-section-banner">
+      <div class="saved-list-head list-section-banner">
         <div class="saved-list-head-left">
           <span class="saved-list-icon archive-section-icon">${RECEIPT_ICON_SVG}</span>
           <span class="saved-list-title" id="archiveSectionTitle">Spese archiviate</span>
@@ -872,11 +891,11 @@ export async function openArchiveCurrentListModal() {
             return `<div class="archive-nd-row">
               <div class="archive-nd-info">
                 <div class="archive-nd-name">${dp.titleHtml}</div>
-                <div class="archive-nd-meta">${esc(group.storeName)} \u00B7 ${fmtQtyUnit(item.quantity, p.unit)} ${esc(assignUnit(p.unit))}</div>
+                <div class="archive-nd-meta">${esc(group.storeName)} \u00B7 ${fmtQtyUnit(item.quantity, p.unit)} ${esc(displayUnit(p))}</div>
               </div>
               <div class="archive-nd-input-wrap">
                 <input type="text" inputmode="decimal" class="archive-nd-input" data-nd-item="${item.id}" placeholder="0,00" value="${esc(curVal)}" aria-label="Prezzo unitario per ${esc(dp.title)}">
-                <span class="archive-nd-unit">\u20AC/${esc(assignUnit(p.unit))}</span>
+                <span class="archive-nd-unit">\u20AC/${esc(displayUnit(p))}</span>
               </div>
             </div>`;
           }).join("")}
@@ -1112,7 +1131,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     if (type === "deduct") {
       const row1 = ADJUSTMENT_PRESETS.deduct.slice(0, 3).map(renderPresetChip).join("");
       const row2 = ADJUSTMENT_PRESETS.deduct.slice(3).map(renderPresetChip).join("");
-      return `<div class="receipt-presets-row">${row1}</div><div class="receipt-presets-row">${row2}</div><div class="receipt-presets-row receipt-presets-spacer" aria-hidden="true"></div>`;
+      return `<div class="receipt-presets-deduct-wrap"><div class="receipt-presets-row is-deduct-row1">${row1}</div><div class="receipt-presets-row is-deduct-row2">${row2}</div><div class="receipt-presets-row receipt-presets-spacer" aria-hidden="true"></div></div>`;
     }
     return ADJUSTMENT_PRESETS[type].map(renderPresetChip).join("");
   };

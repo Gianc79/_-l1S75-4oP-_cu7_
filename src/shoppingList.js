@@ -1,7 +1,7 @@
 // Gestione lista della spesa, aggiunta/modifica articoli, importi e sconti
 import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_CIRCLE_X, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
-import { $, assignUnit, esc, eurosFromInput, filterBySearch, fitStoreChipLabels, fmtQtyUnit, money, moneyPerUnit, norm, now, parseQty, productDisplayParts, productSearchText, qtyValid, quantityStepValue, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
+import { $, displayUnit, esc, eurosFromInput, filterBySearch, fitStoreChipLabels, fmtQtyUnit, money, moneyPerUnit, norm, now, parseQty, productDisplayParts, productSearchText, qtyValid, quantityStepValue, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, activeList, allCategoriesSorted, allProductsSorted, allStoresSorted, delOne, getAll, getOne, putOne, replaceItems, settings, snapshotItems, storeIdsForProduct, txDone, visibleListItems } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, infoPop, modal, multiFilterHtml, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateFloatingAddButton, updateScrollTopButton, updateSingleFilterUI, wireCustomDropdown, wireMultiFilter, wireSingleFilter } from "./ui.js";
 import { currentSavedListId, isSavedListModified, listItemsForSave, openSavedListsWindow, saveListAs } from "./history.js";
@@ -278,7 +278,7 @@ export function wireListPrice(p, prices) {
     if (!opt) return;
     let priceEl = opt.querySelector(".dd-opt-price");
     if (minor !== null && minor !== undefined) {
-      const txt = moneyPerUnit(minor, p.unit);
+      const txt = moneyPerUnit(minor, p);
       if (!priceEl) {
         priceEl = document.createElement("span");
         priceEl.className = "dd-opt-price";
@@ -496,9 +496,9 @@ export async function clearOrReset(reset) {
     return;
   }
   const yes = await confirmDialog(
-    reset ? "Inizializza Spesa" : "Svuota Lista Spesa",
+    reset ? "Inizializza spesa" : "Svuota Lista spesa",
     reset ? "Tutti gli articoli della spesa corrente verranno deflaggati.<br>Procedere comunque?" : "Tutti gli articoli della spesa corrente verranno rimossi dalla lista.<br>Procedere comunque?",
-    "Procedi",
+    reset ? "Inizializza" : "Svuota",
     { closeButton: false, backdropClose: false, cancelFirst: reset, confirmClass: reset ? "btn-primary" : "btn-danger" }
   );
   if (!yes) return;
@@ -623,8 +623,8 @@ export async function renderList(keepFilterOpen = false) {
   const listFilterOptions = [{ id: "none", label: "Senza supermercato", html: '<span style="font-style:italic">Senza supermercato</span>', disabled: !hasNoneItems }].concat(storeList.map((sto) => ({ id: sto.id, label: sto.name, html: storeChipHtml(sto), disabled: (storeItemCounts[sto.id] || 0) === 0 })));
   const isListModified = isSavedListModified(_cl, items, pMap, sMap);
   const resetListIconSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#2f6db5" stroke="#173f73" stroke-width="1"/><path d="M7.2 7.2v3.9h3.9" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.1 14.3a5.2 5.2 0 1 0 1.3-5.7l-2.2 2.2" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  let html = `<div class="toolbar"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}<button class="header-icon" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.3" fill="#44546a"/><circle cx="12" cy="12" r="2.3" fill="#44546a"/><circle cx="12" cy="19" r="2.3" fill="#44546a"/></svg></button></div><button type="button" class="header-icon list-quick-icon trash-mini" id="emptyListQuickBtn" aria-label="Svuota Lista Spesa" title="Svuota Lista Spesa">${TRASH_OFFICE}</button></div>
-  ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><div class="list-inuse-left"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : "nessuna lista salvata"}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div><div class="list-quick-actions"><button type="button" class="header-icon list-quick-icon" id="resetListQuickBtn" aria-label="Inizializza Spesa" title="Inizializza Spesa">${resetListIconSvg}</button></div></div><div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi un articolo alla lista</span></button></div>
+  let html = `<div class="toolbar"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}<button class="header-icon" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.3" fill="#44546a"/><circle cx="12" cy="12" r="2.3" fill="#44546a"/><circle cx="12" cy="19" r="2.3" fill="#44546a"/></svg></button></div></div>
+  ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><div class="list-inuse-left"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : "nessuna lista salvata"}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div><div class="list-quick-actions"><button type="button" class="header-icon list-quick-icon" id="resetListQuickBtn" aria-label="Inizializza spesa" title="Inizializza spesa">${resetListIconSvg}</button><button type="button" class="header-icon list-quick-icon trash-mini" id="emptyListQuickBtn" aria-label="Svuota Lista spesa" title="Svuota Lista spesa">${TRASH_OFFICE}</button></div></div><div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi un articolo alla lista</span></button></div>
   <div class="prod-filters-box list-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span></div><div class="prod-filters-grid is-single">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: state.selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "" })}<button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div></div>`;
   if (!visible.length) html += `<div class="empty" style="margin-top:14px">${items.length ? "Nessun articolo per questo filtro." : "La lista \xE8 vuota.<br>Inizia aggiungendo un articolo."}</div>`;
   else {
@@ -674,7 +674,7 @@ export async function renderList(keepFilterOpen = false) {
         : item.manualAmountMinor;
       const hasPrice = hasManual || (!!item.storeId && !!price);
       const priceText = hasManual ? money(itemTotalCents) : (price ? money(Math.round(price.amountMinor * item.quantity)) : "prezzo N/D");
-      const qtyText = `${fmtQtyUnit(item.quantity, p.unit)} ${esc(assignUnit(p.unit))}`;
+      const qtyText = `${fmtQtyUnit(item.quantity, p.unit)} ${esc(displayUnit(p))}`;
       const catHtml = p.categoryId && cMap[p.categoryId] ? esc(catLabel) : `<span class="it">${esc(catLabel)}</span>`;
       const dp = productDisplayParts(p);
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : "";
@@ -826,9 +826,9 @@ export async function openAddItem() {
       const dp = productDisplayParts(p);
       const brandRow = dp.brand ? `<span class="row-brand">${esc(dp.brand)}</span>` : '<span class="row-brand is-empty" aria-hidden="true">&nbsp;</span>';
       if (existing) {
-        return swipeWrap(`<div class="choice-row already-in-list" data-remove-added-product="${existing.id}"><div class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${dp.titleHtml}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</div></div>`, "swipe-choice");
+        return swipeWrap(`<div class="choice-row already-in-list" data-remove-added-product="${existing.id}"><div class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${dp.titleHtml}</strong><span class="row-qty">${esc(displayUnit(p))}</span></span>${brandRow}</div></div>`, "swipe-choice");
       }
-      return `<button type="button" class="choice-row choice-row-3d" data-add-product="${p.id}" aria-label="Aggiungi ${esc(dp.title)} alla lista"><span class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${dp.titleHtml}</strong><span class="row-qty">${esc(assignUnit(p.unit))}</span></span>${brandRow}</span></button>`;
+      return `<button type="button" class="choice-row choice-row-3d" data-add-product="${p.id}" aria-label="Aggiungi ${esc(dp.title)} alla lista"><span class="choice-main"><span class="item-top-row"><strong class="row-name fit-name">${dp.titleHtml}</strong><span class="row-qty">${esc(displayUnit(p))}</span></span>${brandRow}</span></button>`;
     }).join("") : '<div class="empty">Nessun articolo trovato.</div>';
     choices.querySelectorAll("[data-add-product]").forEach((b) => b.addEventListener("click", () => addProductToList(b.dataset.addProduct)));
     bindSwipeDelete(choices, "[data-remove-added-product]", async (row) => {
@@ -902,7 +902,7 @@ export async function addProductToList(productId) {
 }
 
 export function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor, initialManualVal) {
-  const unit = assignUnit(p.unit);
+  const unit = displayUnit(p);
   const dp = productDisplayParts(p);
   const brandRow = dp.brand ? `<span class="assign-product-brand">${esc(dp.brand)}</span>` : "";
   const initialListVal = listPriceMinor !== null && listPriceMinor !== undefined ? (listPriceMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }) : "";
@@ -957,8 +957,8 @@ export async function openNewListItemEditor(productId, ov = null) {
     const pr = prices.find((x) => x.productId === p.id && x.storeId === s.id);
     const chip = storeHasColors(s) ? storeChipHtml(s) : "";
     const nameHtml = chip || `<span class="dd-opt-name">${esc(s.name)}</span>`;
-    const priceHtml = pr ? `<span class="dd-opt-price">${esc(moneyPerUnit(pr.amountMinor, p.unit))}</span>` : "";
-    return { ...s, menuName: pr ? `${s.name} ${moneyPerUnit(pr.amountMinor, p.unit)}` : s.name, labelHtml: nameHtml, menuHtml: pr ? `${nameHtml}${priceHtml}` : nameHtml };
+    const priceHtml = pr ? `<span class="dd-opt-price">${esc(moneyPerUnit(pr.amountMinor, p))}</span>` : "";
+    return { ...s, menuName: pr ? `${s.name} ${moneyPerUnit(pr.amountMinor, p)}` : s.name, labelHtml: nameHtml, menuHtml: pr ? `${nameHtml}${priceHtml}` : nameHtml };
   });
   const initialManualVal = ov && ov.manualAmount !== undefined ? ov.manualAmount : "";
   const initialPrice = initialStore ? prices.find((x) => x.productId === p.id && x.storeId === initialStore) : null;
@@ -1119,8 +1119,8 @@ export async function openQuickEdit(itemId, ov = null) {
     const pr = prices.find((x) => x.productId === p.id && x.storeId === s.id);
     const chip = storeHasColors(s) ? storeChipHtml(s) : "";
     const nameHtml = chip || `<span class="dd-opt-name">${esc(s.name)}</span>`;
-    const priceHtml = pr ? `<span class="dd-opt-price">${esc(moneyPerUnit(pr.amountMinor, p.unit))}</span>` : "";
-    return { ...s, menuName: pr ? `${s.name} ${moneyPerUnit(pr.amountMinor, p.unit)}` : s.name, labelHtml: nameHtml, menuHtml: pr ? `${nameHtml}${priceHtml}` : nameHtml };
+    const priceHtml = pr ? `<span class="dd-opt-price">${esc(moneyPerUnit(pr.amountMinor, p))}</span>` : "";
+    return { ...s, menuName: pr ? `${s.name} ${moneyPerUnit(pr.amountMinor, p)}` : s.name, labelHtml: nameHtml, menuHtml: pr ? `${nameHtml}${priceHtml}` : nameHtml };
   });
   const currentPrice = prices.find((x) => x.productId === p.id && x.storeId === curStore);
   const initialManualVal = ov && ov.manualAmount !== undefined ? ov.manualAmount : (item.manualUnitPriceMinor !== null && item.manualUnitPriceMinor !== undefined ? (item.manualUnitPriceMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (item.manualAmountMinor !== null && item.manualAmountMinor !== undefined ? (item.manualAmountMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""));
