@@ -2105,3 +2105,20 @@ input[type=search].search-input:placeholder-shown,
 @media(max-width:355px){
   .modal-sticky-footer .modal-actions .prod-detail-action-btn{padding:10px 6px;font-size:12px}
 }
+
+/* v. 1.82 */
+/* Campo Prezzo Unit. SCONTATO: sfondo verdino quando contiene un valore positivo */
+.manual-amount-box .name-box input.has-positive:not(:disabled),.manual-amount-box .name-box.has-positive input:not(:disabled){background-color:#d8f5e3!important;background-image:linear-gradient(180deg,#bcebd0 0%,#dcf7e6 34%,#ebfbf1 100%)!important;border-color:#5bb880!important;border-top-color:#3a9860!important;box-shadow:inset 0 2px 5px rgba(14,107,58,.18),0 1px 0 rgba(255,255,255,.9)!important}
+/* Finestra Dettagli articolo: pulsante Salva nuovo azzurro, font pulsanti aumentato e icona info */
+.btn-azure{background:linear-gradient(180deg,#48aaf7 0%,#2078cf 100%);border-color:#155ca3;color:#ffffff;box-shadow:inset 0 1px 0 rgba(255,255,255,.36),0 3px 0 #114b86,0 5px 12px rgba(21,92,163,.24)}
+.btn-azure:active:not(:disabled){background:linear-gradient(180deg,#3496e4 0%,#1a67b5 100%);box-shadow:inset 0 1px 2px rgba(0,0,0,.18),0 1px 0 #114b86,0 2px 5px rgba(21,92,163,.18)}
+.modal-sticky-footer .modal-actions .prod-detail-action-btn{padding:10px 6px;font-size:clamp(14.5px,4.15vw,16px);line-height:1.15;white-space:nowrap;letter-spacing:-.2px}
+@media(max-width:355px){
+  .modal-sticky-footer .modal-actions .prod-detail-action-btn{padding:10px 5px;font-size:clamp(13.2px,4vw,14.5px)}
+}
+.modal:has(.product-editor) .modal-header h2{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;font-size:clamp(19px,5.2vw,22px)}
+.modal:has(.product-editor) .modal-header .info-btn{margin-left:0}
+.modal.modal-has-sticky-footer>.info-pop{flex:0 0 auto;margin:10px 16px 2px;z-index:15}
+/* Finestra Dettaglio scontrino: casella importo aggiunte/detrazioni inattiva finché non si seleziona un'opzione */
+.receipt-adj-amt-box input[type=text]:disabled{background:#eef2f0;background-image:none;border-color:#d3ddd8;color:var(--muted);box-shadow:none;cursor:not-allowed;pointer-events:none;caret-color:transparent!important;user-select:none;-webkit-user-select:none}
+.receipt-adj-amt-box.is-disabled .name-no,.receipt-adj-amt-box.is-disabled .name-ok{display:none!important}

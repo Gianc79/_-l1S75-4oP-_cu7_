@@ -1,4 +1,4 @@
-const CACHE_NAME = "spesasumisura-v1.81";
+const CACHE_NAME = "spesasumisura-v1.82";
 const ASSETS = [
   "./",
   "./index.html",

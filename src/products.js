@@ -259,7 +259,7 @@ export async function openProductForm(productId, returnPage = "products", return
   }).join("") || '<div class="empty">Non hai ancora creato supermercati. Puoi salvare l\u2019articolo senza associarlo a uno store.</div>'}</div>${addListBoxHtml}</div></form></div>`;
   const buttons = productId
     ? [
-        { id: "prodSaveAsNewBtn", label: "Salva nuovo", class: "btn-fuchsia prod-detail-action-btn", disabled: true, action: async () => {
+        { id: "prodSaveAsNewBtn", label: "Salva nuovo", class: "btn-azure prod-detail-action-btn", disabled: true, action: async () => {
           if ($("#prodSaveAsNewBtn")?.disabled) return;
           await saveProductForm(null, returnPage, returnCategoryId, { saveAsNew: true });
         } },
@@ -288,6 +288,11 @@ export async function openProductForm(productId, returnPage = "products", return
       } }, { label: "Aggiungi", class: "btn-primary", action: async () => saveProductForm(null, returnPage, returnCategoryId) }];
   const onClose = returnPage === "editor" ? () => returnFn() : (returnPage === "list" || returnPage === "addItem") ? () => openAddItem() : returnPage === "categoryDetail" ? () => openCategoryForm(returnCategoryId, true) : returnPage === "categoryPicker" ? () => openCategoryProductPicker(returnCategoryId) : returnPage === "products" && !productId ? () => renderProducts() : null;
   modal(productId ? "Dettagli articolo" : "Nuovo articolo", body, buttons, { closeButton: true, backdropClose: false, onClose, alignTop: true, headerThemed: true, stickyFooter: true, keepModalOnClose: returnPage === "list" || returnPage === "addItem" || returnPage === "editor" || returnPage === "categoryDetail" || returnPage === "categoryPicker" });
+  if (productId) {
+    const hh = $("#modalRoot .modal-header");
+    hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
+    hh.insertAdjacentHTML("afterend", '<div class="info-pop" hidden>Modifica l\u2019articolo esistente o creane uno nuovo partendo da questa base.</div>');
+  }
   const formEl = $("#productForm");
   formEl.addEventListener("submit", (e) => e.preventDefault());
   wireCustomDropdown("prodCategory");
@@ -370,6 +375,13 @@ export async function openProductForm(productId, returnPage = "products", return
     const q = parseQty(t);
     return packQtyValid(q, unit) ? formatPackQtyValue(q) : t;
   };
+  const normalizePackPiecesForSnap = (raw) => {
+    const t = String(raw ?? "").trim();
+    if (!t) return "";
+    const n = parsePackPieces(t);
+    if (n === null || n === 0 || n === 1) return "";
+    return Number.isInteger(n) ? String(n) : t;
+  };
   const initialSnapshot = productId ? JSON.stringify({
     cat: p?.categoryId || "",
     itemName: String(initFields.itemName || "").trim().replace(/\s+/g, " "),
@@ -377,7 +389,7 @@ export async function openProductForm(productId, returnPage = "products", return
     pack: initialPackaging,
     pu: initialPackUnit,
     pq: initialPackaging === "sfuso" ? "" : normalizePackQtyForSnap(initialPackQtyStr, initialPackUnit),
-    pp: initialPackaging === "confezione" && !isPiecePackUnit(initialPackUnit) ? String(initialPackPiecesStr || "").trim() : "",
+    pp: initialPackaging === "confezione" && !isPiecePackUnit(initialPackUnit) ? normalizePackPiecesForSnap(initialPackPiecesStr) : "",
     stores: ss.map((s) => {
       const checked = assoc.includes(s.id);
       const pr = prices.find((x) => x.productId === productId && x.storeId === s.id);
@@ -389,7 +401,7 @@ export async function openProductForm(productId, returnPage = "products", return
     const pack = packInp?.value || "confezione";
     const pu = packUnitInp?.value || "kg";
     const pq = pack === "sfuso" ? "" : normalizePackQtyForSnap(packQtyInp?.value, pu);
-    const pp = pack === "confezione" && !isPiecePackUnit(pu) ? String(packPiecesInp?.value || "").trim() : "";
+    const pp = pack === "confezione" && !isPiecePackUnit(pu) ? normalizePackPiecesForSnap(packPiecesInp?.value) : "";
     const storesSnap = [...$("#modalRoot").querySelectorAll("[data-store-check]")].map((cb) => {
       const sid = cb.dataset.storeCheck;
       const checked = !!cb.checked;

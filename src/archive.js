@@ -1171,8 +1171,8 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
           <div class="receipt-adj-inputs">
             <div class="receipt-adj-amt-field">
               <span class="receipt-adj-sign ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="adjSignIndicator" aria-hidden="true">${adjType === "deduct" ? "\u2212" : "+"}</span>
-              <div class="name-box receipt-adj-amt-box">
-                <input type="text" inputmode="decimal" enterkeyhint="done" id="adjAmountInput" maxlength="7" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Importo in euro">
+              <div class="name-box receipt-adj-amt-box is-disabled">
+                <input type="text" inputmode="decimal" enterkeyhint="done" id="adjAmountInput" maxlength="7" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Importo in euro" disabled readonly tabindex="-1" aria-disabled="true">
                 <button type="button" class="name-no" id="adjAmountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
                 <button type="button" class="name-ok" id="adjAmountOk" aria-label="Conferma importo" title="Conferma importo">${SVG_CHK}</button>
               </div>
@@ -1199,6 +1199,24 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   </div>`;
 
   modal("Dettaglio scontrino", body, [
+    {
+      label: "Elimina",
+      class: "btn-danger",
+      action: async () => {
+        const yes = await confirmDialog(
+          "Elimina scontrino",
+          `Lo scontrino di <strong>${esc(currentReceipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente. Procedere comunque?`,
+          "Elimina",
+          { overlay: true, closeButton: false, backdropClose: false }
+        );
+        if (!yes) return;
+        await delOne("archivedReceipts", currentReceipt.id);
+        state.currentModal = null;
+        state.currentModalKeep = false;
+        await openArchiveWindow(archiveOpts);
+        showToast("Scontrino eliminato");
+      }
+    },
     { label: "Chiudi", class: "btn-plain", action: () => { state.currentModal = null; state.currentModalKeep = false; openArchiveWindow(archiveOpts); } }
   ], {
     closeButton: true,
@@ -1330,6 +1348,32 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   };
   bindAdjSwipeDelete();
 
+  let confirmedAmtVal = "";
+  const syncAmtDirty = () => {
+    if (!amtInp || !amtBox) return;
+    amtBox.classList.toggle("dirty", !amtInp.disabled && amtInp.value !== confirmedAmtVal);
+  };
+  const syncAdjAmountEnabled = (clearValue = false) => {
+    if (!amtInp) return;
+    const enabled = !!selectedPreset;
+    amtInp.disabled = !enabled;
+    amtInp.readOnly = !enabled;
+    amtInp.tabIndex = enabled ? 0 : -1;
+    amtInp.setAttribute("aria-disabled", enabled ? "false" : "true");
+    amtBox?.classList.toggle("is-disabled", !enabled);
+    if (!enabled) {
+      if (clearValue) {
+        amtInp.value = "";
+        confirmedAmtVal = "";
+      }
+      if (document.activeElement === amtInp) {
+        amtInp.blur();
+        releaseModalKeyboard();
+      }
+    }
+    syncAmtDirty();
+  };
+
   const bindPresetChips = () => {
     presetsWrap?.querySelectorAll("[data-adj-preset]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1337,11 +1381,13 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
         presetsWrap.querySelectorAll("[data-adj-preset]").forEach((b) => {
           b.classList.toggle("is-selected", b.dataset.adjPreset === selectedPreset);
         });
+        syncAdjAmountEnabled(false);
         amtInp?.focus();
       });
     });
   };
   bindPresetChips();
+  syncAdjAmountEnabled(false);
 
   const tabsWrap = $("#receiptTabsWrap");
   root.querySelectorAll("[data-adj-type]").forEach((btn) => {
@@ -1350,6 +1396,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       if (nextType === adjType) return;
       adjType = nextType;
       selectedPreset = "";
+      syncAdjAmountEnabled(true);
       tabsWrap?.classList.toggle("is-add", adjType === "add");
       tabsWrap?.classList.toggle("is-deduct", adjType === "deduct");
       if (adjSignEl) {
@@ -1375,14 +1422,13 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     });
   });
 
-  let confirmedAmtVal = "";
-  const syncAmtDirty = () => {
-    if (!amtInp || !amtBox) return;
-    amtBox.classList.toggle("dirty", amtInp.value !== confirmedAmtVal);
-  };
   if (amtInp && amtBox) {
     selectAllOnFocus(amtInp);
+    amtInp.addEventListener("focus", () => {
+      if (amtInp.disabled) amtInp.blur();
+    });
     amtInp.addEventListener("input", () => {
+      if (amtInp.disabled) return;
       const clean = sanitizeReceiptAmountInput(amtInp.value);
       if (amtInp.value !== clean) amtInp.value = clean;
       syncAmtDirty();
