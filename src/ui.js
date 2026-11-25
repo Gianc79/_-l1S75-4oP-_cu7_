@@ -1279,11 +1279,13 @@ export function multiFilterSummaryHtml({ allLabel, emptyLabel, options, selected
   return options.filter((o) => !o.disabled && selectedSet.has(o.id)).map((o) => o.html || esc(o.label)).join(", ") || esc(emptyLabel);
 }
 
-export function multiFilterHtml({ id, allLabel, emptyLabel, options, selected, showAll, allDisabled, keepOpen = false, searchQuery = "" }) {
+export function multiFilterHtml({ id, allLabel, emptyLabel, options, selected, showAll, allDisabled, keepOpen = false, searchQuery = "", searchMaxLength = null, searchUppercase = false }) {
   const selectedSet = new Set(selected || []);
   const active = !allDisabled && !showAll;
   const summaryHtml = multiFilterSummaryHtml({ allLabel, emptyLabel, options, selected, showAll });
-  const q = searchNorm(searchQuery || "");
+  const initQuery = (Number.isInteger(searchMaxLength) && searchMaxLength > 0 ? String(searchQuery || "").slice(0, searchMaxLength) : String(searchQuery || ""));
+  const displayQuery = searchUppercase ? initQuery.toLocaleUpperCase("it") : initQuery;
+  const q = searchNorm(displayQuery);
   let visibleCount = 0;
   const orderedOpts = q ? filterBySearch(options, q, (o) => o.label).concat(options.filter((o) => searchRank(o.label, q) < 0)) : options;
   const optsHtml = orderedOpts.map((opt) => {
@@ -1293,7 +1295,10 @@ export function multiFilterHtml({ id, allLabel, emptyLabel, options, selected, s
     return `<label class="check-line${opt.disabled ? " is-disabled" : ""}" data-filter-label="${esc(opt.label)}"${isHidden ? " hidden" : ""}><input type="checkbox" data-filter-opt="${esc(id)}" data-value="${esc(opt.id)}" ${checked ? "checked" : ""} ${opt.disabled ? "disabled" : ""}> <span>${opt.html || esc(opt.label)}</span></label>`;
   }).join("");
   const emptyHidden = !q || visibleCount > 0;
-  return `<div class="store-filter-wrap" data-multi-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="true" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${summaryHtml}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Cerca\u2026" autocomplete="off" value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div><label class="check-line filter-all-row${allDisabled ? " is-disabled" : ""}"${q ? " hidden" : ""}><input type="checkbox" data-filter-all="${esc(id)}" ${!allDisabled && showAll ? "checked" : ""} ${allDisabled ? "disabled" : ""}> <span>Seleziona tutti</span></label>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
+  const searchMaxAttr = Number.isInteger(searchMaxLength) && searchMaxLength > 0 ? ` maxlength="${searchMaxLength}"` : "";
+  const searchUpperAttr = searchUppercase ? ' autocapitalize="characters"' : "";
+  const searchCls = searchUppercase ? "dd-search force-upper" : "dd-search";
+  return `<div class="store-filter-wrap" data-multi-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="true" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${summaryHtml}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="${searchCls}" placeholder="Cerca\u2026" autocomplete="off"${searchMaxAttr}${searchUpperAttr} value="${esc(displayQuery)}"><button type="button" class="dd-clear" ${displayQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div><label class="check-line filter-all-row${allDisabled ? " is-disabled" : ""}"${q ? " hidden" : ""}><input type="checkbox" data-filter-all="${esc(id)}" ${!allDisabled && showAll ? "checked" : ""} ${allDisabled ? "disabled" : ""}> <span>Seleziona tutti</span></label>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
 }
 
 export function updateMultiFilterUI(id, { allLabel, emptyLabel, options, selected, showAll, allDisabled }) {
@@ -1319,13 +1324,17 @@ export function updateMultiFilterUI(id, { allLabel, emptyLabel, options, selecte
   });
 }
 
-export function wireMultiFilter(id, { onAllChange, onItemChange }) {
+export function wireMultiFilter(id, { onAllChange, onItemChange, searchMaxLength = null, searchUppercase = false }) {
   const trigger = $(`#${id}Trigger`), menu = $(`#${id}Menu`);
   if (!trigger || !menu) return;
   const ds = menu.querySelector(".dd-search"), dcl = menu.querySelector(".dd-clear");
   const allRow = menu.querySelector(".filter-all-row"), emptyMsg = menu.querySelector(".filter-empty-msg");
+  const maxLen = Number.isInteger(searchMaxLength) && searchMaxLength > 0 ? searchMaxLength : (ds && ds.maxLength > 0 ? ds.maxLength : 0);
+  if (ds && maxLen) ds.maxLength = maxLen;
+  if (ds && searchUppercase) forceUppercaseInput(ds);
   const applySearch = () => {
     if (!ds) return;
+    if (maxLen && ds.value.length > maxLen) ds.value = ds.value.slice(0, maxLen);
     if (dcl) dcl.hidden = !ds.value;
     const q = searchNorm(ds.value);
     if (allRow) allRow.hidden = !!q;
