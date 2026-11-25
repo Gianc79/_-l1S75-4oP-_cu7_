@@ -2,7 +2,7 @@
 import { state } from "./state.js";
 import { PROD_BRAND_MAX, PROD_CONFEZIONE_UNITS, PROD_LENGTH_UNITS, PROD_NAME_MAX, PROD_SFUSO_UNITS, PROD_VOLUME_UNITS, PROD_WEIGHT_UNITS, SVG_CHK, SVG_CIRCLED_PLUS, SVG_CIRCLE_X, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
 import { $, composeProductDescription, displayUnit, esc, eurosFromInput, extractProductFields, filterBySearch, fitStoreChipLabels, fmtQtyUnit, formatPackQtyValue, formatProductNetParts, formatTitleWithNetHtml, isLengthPackUnit, isPiecePackUnit, isVolumePackUnit, isWeightPackUnit, norm, now, packQtyPlaceholderFor, packQtyValid, parsePackPieces, parseQty, productDisplayParts, productSearchText, qtyValid, quantityStepValue, salesUnitForPackaging, storeChipHtml, storeHasColors, storesDescFor, uuid } from "./calculations.js";
-import { allCategoriesSorted, allProductsSorted, allStoresSorted, categoryMap, getAll, getOne, putOne, settings, storeIdsForProduct, txDone } from "./storage.js";
+import { activeItems, allCategoriesSorted, allProductsSorted, allStoresSorted, categoryMap, getAll, getOne, putOne, settings, storeIdsForProduct, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, decorateInput, forceUppercaseInput, infoPop, modal, releaseModalKeyboard, selectAllOnFocus, setDropdownValue, showToast, singleFilterHtml, swipeWrap, tipBtn, updateSingleFilterUI, wireCustomDropdown, wireSingleFilter } from "./ui.js";
 import { actuallyAddItem, openAddItem, openNewListItemEditor, renderList } from "./shoppingList.js";
 import { openCategoryForm, openCategoryProductPicker, renderCategories } from "./categories.js";
@@ -234,14 +234,16 @@ export async function openProductForm(productId, returnPage = "products", return
   const looseIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 9h14l-1.5 11h-11L5 9Z"/><circle cx="12" cy="14" r="2.2"/></svg>';
   const chevSvg = '<svg class="prod-um-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const storesDescText = storesDescFor(initialPackaging, initialPackUnit);
-  const initialAddStore = st?.defaultStoreId && ss.some((s) => s.id === st.defaultStoreId) ? st.defaultStoreId : "";
+  const initialAddStore = st?.defaultStoreId && ss.some((s) => s.id === st.defaultStoreId)
+    ? st.defaultStoreId
+    : (assoc.length === 1 && ss.some((s) => s.id === assoc[0]) ? assoc[0] : "");
   const addStoreOptions = ss.map((s) => {
     const chip = storeHasColors(s) ? storeChipHtml(s) : "";
     const nameHtml = chip || `<span class="dd-opt-name">${esc(s.name)}</span>`;
     return { ...s, menuName: s.name, labelHtml: nameHtml, menuHtml: nameHtml };
   });
   const initialDisplayUnit = displayUnit(initialSalesUnit, initialPackaging);
-  const addListBoxHtml = !productId ? `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-add-fields is-inactive" id="addNewProdFields"><div class="new-prod-store-row">${customDropdown("addNewProdStore", initialAddStore, addStoreOptions, true, true)}</div><div class="new-prod-qty-row" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0<br>[<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialSalesUnit))}" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div><div class="new-prod-discount-row manual-amount-box" id="addNewProdDiscountRow"><label for="addNewProdDiscount">Prezzo Unit.<br><strong>SCONTATO</strong></label><div class="manual-input-wrap"><div class="name-box"><button type="button" class="manual-price-clear" id="addNewProdDiscountClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="addNewProdDiscount" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdDiscountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdDiscountOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span></span></div></div></div></div>` : "";
+  const addListBoxHtml = `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-add-fields is-inactive" id="addNewProdFields"><div class="new-prod-store-row">${customDropdown("addNewProdStore", initialAddStore, addStoreOptions, true, true)}</div><div class="new-prod-qty-row" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0<br>[<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialSalesUnit))}" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div><div class="new-prod-discount-row manual-amount-box" id="addNewProdDiscountRow"><label for="addNewProdDiscount">Prezzo Unit.<br><strong>SCONTATO</strong></label><div class="manual-input-wrap"><div class="name-box"><button type="button" class="manual-price-clear" id="addNewProdDiscountClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="addNewProdDiscount" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdDiscountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdDiscountOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span></span></div></div></div></div>`;
   const packagingTipHtml = `<div class="info-pop tip-pop" id="prodPackagingTip" hidden><div>Alcuni esempi:</div><table class="tip-examples-table"><thead><tr><th>ARTICOLO</th><th>IMBALLO</th></tr></thead><tbody><tr><td>Patate sfuse</td><td>Sfuso (al kg)</td></tr><tr><td>Patate in rete da 2kg</td><td>Confezione (2kg)</td></tr><tr><td>Uova sfuse</td><td>Sfuso (al pz)</td></tr><tr><td>Uova in cartone 6pz</td><td>Confezione (6pz)</td></tr><tr><td>Cassa 6 Bott. x 2lt</td><td>Confezione (12lt)</td></tr><tr><td>Birra 3 Bott. x 33cl</td><td>Confezione (99cl)</td></tr></tbody></table></div>`;
   const body = `<div class="product-editor"><form id="productForm"><div class="product-main-card">
     ${initFields.isLegacy ? `<div class="prod-legacy-note">Articolo da versione precedente (<strong>${esc(initFields.legacyName)}</strong>): completa i campi qui sotto per uniformare la descrizione.</div>` : ""}
@@ -255,33 +257,41 @@ export async function openProductForm(productId, returnPage = "products", return
     const selected = assoc.includes(s.id) || (!productId && filterPreselectedStore === s.id), pr = prices.find((x) => x.productId === productId && x.storeId === s.id);
     return `<div class="card store-price-row"><label class="check-line"><input type="checkbox" data-store-check="${s.id}" ${selected ? "checked" : ""}>${storeChipHtml(s, { defaultBold: true })}</label><div class="price-wrap ${selected ? "" : "hidden"}" id="priceField-${s.id}"><span class="price-row-label">Prezzo<br>Unitario</span><div class="price-input-group"><div class="name-box"><input class="price-input" id="price-${s.id}" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Prezzo di ${esc(s.name)} in euro" value="${pr ? String((pr.amountMinor / 100).toFixed(2)).replace(".", ",") : ""}"><button type="button" class="name-no" data-price-no="${s.id}" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" data-price-ok="${s.id}" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="store-price-unit">${esc(initialDisplayUnit)}</span></span></div></div></div>`;
   }).join("") || '<div class="empty">Non hai ancora creato supermercati. Puoi salvare l\u2019articolo senza associarlo a uno store.</div>'}</div>${addListBoxHtml}</div></form></div>`;
-  const buttons = [{ label: "Annulla", class: "btn-plain", action: () => {
-    if (returnPage === "addItem" || returnPage === "list") {
-      state.currentModal = null;
-      state.currentModalKeep = false;
-      openAddItem();
-    } else if (returnPage === "editor") {
-      state.currentModal = null;
-      state.currentModalKeep = false;
-      returnFn();
-    } else if (returnPage === "categoryDetail") {
-      state.currentModal = null;
-      state.currentModalKeep = false;
-      openCategoryForm(returnCategoryId, true);
-    } else if (returnPage === "categoryPicker") {
-      state.currentModal = null;
-      state.currentModalKeep = false;
-      openCategoryProductPicker(returnCategoryId);
-    } else {
-      closeModal();
-    }
-  } }, { label: productId ? "Salva" : "Aggiungi", class: "btn-primary", action: async () => saveProductForm(productId, returnPage, returnCategoryId) }];
+  const buttons = productId
+    ? [
+        { id: "prodSaveAsNewBtn", label: "Salva nuovo", class: "btn-fuchsia prod-detail-action-btn", disabled: true, action: async () => {
+          if ($("#prodSaveAsNewBtn")?.disabled) return;
+          await saveProductForm(null, returnPage, returnCategoryId, { saveAsNew: true });
+        } },
+        { id: "prodSaveExistingBtn", label: "Modifica esistente", class: "btn-primary prod-detail-action-btn", action: async () => saveProductForm(productId, returnPage, returnCategoryId) }
+      ]
+    : [{ label: "Annulla", class: "btn-plain", action: () => {
+        if (returnPage === "addItem" || returnPage === "list") {
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          openAddItem();
+        } else if (returnPage === "editor") {
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          returnFn();
+        } else if (returnPage === "categoryDetail") {
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          openCategoryForm(returnCategoryId, true);
+        } else if (returnPage === "categoryPicker") {
+          state.currentModal = null;
+          state.currentModalKeep = false;
+          openCategoryProductPicker(returnCategoryId);
+        } else {
+          closeModal();
+        }
+      } }, { label: "Aggiungi", class: "btn-primary", action: async () => saveProductForm(null, returnPage, returnCategoryId) }];
   const onClose = returnPage === "editor" ? () => returnFn() : (returnPage === "list" || returnPage === "addItem") ? () => openAddItem() : returnPage === "categoryDetail" ? () => openCategoryForm(returnCategoryId, true) : returnPage === "categoryPicker" ? () => openCategoryProductPicker(returnCategoryId) : returnPage === "products" && !productId ? () => renderProducts() : null;
   modal(productId ? "Dettagli articolo" : "Nuovo articolo", body, buttons, { closeButton: true, backdropClose: false, onClose, alignTop: true, headerThemed: true, stickyFooter: true, keepModalOnClose: returnPage === "list" || returnPage === "addItem" || returnPage === "editor" || returnPage === "categoryDetail" || returnPage === "categoryPicker" });
   const formEl = $("#productForm");
   formEl.addEventListener("submit", (e) => e.preventDefault());
   wireCustomDropdown("prodCategory");
-  if (!productId) wireCustomDropdown("addNewProdStore");
+  wireCustomDropdown("addNewProdStore");
 
   const itemNameInp = $("#prodItemName");
   const brandInp = $("#prodBrand");
@@ -347,8 +357,63 @@ export async function openProductForm(productId, returnPage = "products", return
   };
 
   let getEffectiveBrandVal = () => brandInp?.value || "";
+  const saveAsNewBtn = productId ? $("#prodSaveAsNewBtn") : null;
+  const normalizePriceForSnap = (raw) => {
+    const t = String(raw || "").trim();
+    if (!t) return "";
+    const c = eurosFromInput(t);
+    return c !== null && !Number.isNaN(c) ? String(c) : t;
+  };
+  const normalizePackQtyForSnap = (raw, unit) => {
+    const t = String(raw || "").trim();
+    if (!t) return "";
+    const q = parseQty(t);
+    return packQtyValid(q, unit) ? formatPackQtyValue(q) : t;
+  };
+  const initialSnapshot = productId ? JSON.stringify({
+    cat: p?.categoryId || "",
+    itemName: String(initFields.itemName || "").trim().replace(/\s+/g, " "),
+    brand: String(initFields.brand || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it"),
+    pack: initialPackaging,
+    pu: initialPackUnit,
+    pq: initialPackaging === "sfuso" ? "" : normalizePackQtyForSnap(initialPackQtyStr, initialPackUnit),
+    pp: initialPackaging === "confezione" && !isPiecePackUnit(initialPackUnit) ? String(initialPackPiecesStr || "").trim() : "",
+    stores: ss.map((s) => {
+      const checked = assoc.includes(s.id);
+      const pr = prices.find((x) => x.productId === productId && x.storeId === s.id);
+      const priceVal = checked && pr ? String(pr.amountMinor) : "";
+      return `${s.id}:${checked ? 1 : 0}:${priceVal}`;
+    }).join("|")
+  }) : "";
+  const getProductFormSnapshot = () => {
+    const pack = packInp?.value || "confezione";
+    const pu = packUnitInp?.value || "kg";
+    const pq = pack === "sfuso" ? "" : normalizePackQtyForSnap(packQtyInp?.value, pu);
+    const pp = pack === "confezione" && !isPiecePackUnit(pu) ? String(packPiecesInp?.value || "").trim() : "";
+    const storesSnap = [...$("#modalRoot").querySelectorAll("[data-store-check]")].map((cb) => {
+      const sid = cb.dataset.storeCheck;
+      const checked = !!cb.checked;
+      const priceVal = checked ? normalizePriceForSnap($("#price-" + sid)?.value) : "";
+      return `${sid}:${checked ? 1 : 0}:${priceVal}`;
+    }).join("|");
+    return JSON.stringify({
+      cat: $("#prodCategory")?.value || "",
+      itemName: String(itemNameInp?.value || "").trim().replace(/\s+/g, " "),
+      brand: String(getEffectiveBrandVal() || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it"),
+      pack,
+      pu,
+      pq,
+      pp,
+      stores: storesSnap
+    });
+  };
+  const syncDirtyState = () => {
+    if (!saveAsNewBtn) return;
+    saveAsNewBtn.disabled = getProductFormSnapshot() === initialSnapshot;
+  };
   const syncDescriptionPreview = () => {
     if (descValueEl) descValueEl.innerHTML = buildDescPreviewHtml(itemNameInp?.value, getEffectiveBrandVal(), packQtyInp?.value, packUnitInp?.value, packInp?.value || "confezione", packPiecesInp?.value);
+    syncDirtyState();
   };
 
   const syncPackPiecesState = () => {
@@ -651,6 +716,7 @@ export async function openProductForm(productId, returnPage = "products", return
       if (suppressNextBlurCommit) {
         suppressNextBlurCommit = false;
         clearBrandSuggestion();
+        syncDescriptionPreview();
         return;
       }
       if (currentSuggestion) commitBrandSuggestion(false);
@@ -964,7 +1030,9 @@ export async function openProductForm(productId, returnPage = "products", return
       syncPackPiecesState();
       syncDescriptionPreview();
     }
+    syncDirtyState();
   };
+  formEl._syncDirtyState = syncDirtyState;
 
   const hasPositiveAddDisc = (v) => {
     if (!v) return false;
@@ -1210,6 +1278,7 @@ export async function openProductForm(productId, returnPage = "products", return
     if (val !== "__new__") currentSelectedCat = val;
     $("#reqCat")?.classList.remove("err");
     $("#prodCategoryTrigger")?.classList.remove("invalid");
+    syncDirtyState();
   });
   $("#prodCategory").addEventListener("change", async (e) => {
     if (e.target.value === "__new__") {
@@ -1265,6 +1334,7 @@ export async function openProductForm(productId, returnPage = "products", return
         setDropdownValue("prodCategory", cat?.id || draft.categoryId || "");
         fitStoreChipLabels($("#productStoreFields"));
         if ($("#addNewProdListBox")) fitStoreChipLabels($("#addNewProdListBox"));
+        $("#productForm")?._syncDirtyState?.();
       };
       await createCategoryInline(async (cat) => reopenProduct(cat), async () => reopenProduct(null));
     }
@@ -1272,6 +1342,7 @@ export async function openProductForm(productId, returnPage = "products", return
   $("#modalRoot").querySelectorAll("[data-store-check]").forEach((cb) => cb.addEventListener("change", () => {
     $("#priceField-" + cb.dataset.storeCheck).classList.toggle("hidden", !cb.checked);
     fitStoreChipLabels(cb.closest(".store-price-row"));
+    syncDirtyState();
   }));
   fitStoreChipLabels($("#productStoreFields"));
   $("#modalRoot").querySelectorAll(".price-input").forEach((inp) => {
@@ -1310,6 +1381,7 @@ export async function openProductForm(productId, returnPage = "products", return
       }
       savedVal = inp.value;
       box?.classList.remove("editing");
+      syncDirtyState();
       if (!fromBlur) {
         inp.blur();
         releaseModalKeyboard();
@@ -1319,11 +1391,13 @@ export async function openProductForm(productId, returnPage = "products", return
     const cancel = () => {
       inp.value = savedVal;
       box?.classList.remove("editing");
+      syncDirtyState();
       inp.blur();
       releaseModalKeyboard();
     };
     inp.addEventListener("focus", startEdit);
     inp.addEventListener("click", startEdit);
+    inp.addEventListener("input", syncDirtyState);
     noBtn?.addEventListener("mousedown", (e) => e.preventDefault());
     noBtn?.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1348,6 +1422,7 @@ export async function openProductForm(productId, returnPage = "products", return
       if (box && box.classList.contains("editing")) commit(true);
     });
   });
+  syncDirtyState();
   void itemNameDec;
   void brandDec;
 }
@@ -1385,7 +1460,10 @@ export async function createCategoryInline(onCreated, onCancelled = () => openPr
   forceUppercaseInput($("#newCatName"));
 }
 
-export async function saveProductForm(productId, returnPage, returnCategoryId = null) {
+export async function saveProductForm(productId, returnPage, returnCategoryId = null, opts = {}) {
+  const saveAsNew = !!opts.saveAsNew;
+  const targetProductId = saveAsNew ? null : productId;
+  const isNew = !targetProductId;
   $("#prodBrand")?._commitSuggestion?.();
   const itemName = ($("#prodItemName")?.value || "").trim().replace(/\s+/g, " ");
   const brand = ($("#prodBrand")?.value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
@@ -1398,7 +1476,7 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
   const packPiecesBad = packaging === "confezione" && !isPiecePackUnit(packUnit) && Number.isNaN(packPiecesParsed);
   const packPieces = Number.isInteger(packPiecesParsed) && packPiecesParsed >= 1 && packPiecesParsed <= 1000 ? packPiecesParsed : null;
   const categoryId = $("#prodCategory")?.value || "";
-  const addToList = !productId && !!$("#addNewProdToList")?.checked;
+  const addToList = !!$("#addNewProdToList")?.checked;
 
   const itemNameMiss = !itemName;
   const itemNameOver = itemName.length > PROD_NAME_MAX;
@@ -1473,7 +1551,7 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
     addDiscountUnitMinor = discMinor !== null && discMinor > 0 ? discMinor : null;
   }
   const products = await getAll("products");
-  if (products.some((x) => x.id !== productId && x.nameNormalized === norm(name))) {
+  if (products.some((x) => x.id !== targetProductId && x.nameNormalized === norm(name))) {
     showToast("Articolo gi\xE0 presente.");
     return;
   }
@@ -1486,9 +1564,9 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
     }
     if (amount !== null) priceRecords.push({ storeId: sid, amountMinor: amount });
   }
-  const existing = productId ? await getOne("products", productId) : null;
+  const existing = targetProductId ? await getOne("products", targetProductId) : null;
   const prod = {
-    id: productId || uuid(),
+    id: targetProductId || uuid(),
     name,
     nameNormalized: norm(name),
     itemName,
@@ -1505,10 +1583,10 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
   const [existingAssociations, existingPrices, existingListItems, existingSavedLists] = await Promise.all([
     getAll("productStores"),
     getAll("productPrices"),
-    productId ? getAll("shoppingListItems") : Promise.resolve([]),
-    productId ? getAll("savedLists") : Promise.resolve([])
+    targetProductId ? getAll("shoppingListItems") : Promise.resolve([]),
+    targetProductId ? getAll("savedLists") : Promise.resolve([])
   ]);
-  const txStores = productId ? ["products", "productStores", "productPrices", "shoppingListItems", "savedLists"] : ["products", "productStores", "productPrices"];
+  const txStores = targetProductId ? ["products", "productStores", "productPrices", "shoppingListItems", "savedLists"] : ["products", "productStores", "productPrices"];
   const tx = state.db.transaction(txStores, "readwrite");
   tx.objectStore("products").put(prod);
   const ps = tx.objectStore("productStores"), pp = tx.objectStore("productPrices");
@@ -1516,7 +1594,7 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
   for (const x of existingPrices) if (x.productId === prod.id) pp.delete(x.id);
   for (const sid of selected) ps.put({ id: uuid(), productId: prod.id, storeId: sid, createdAt: now() });
   for (const pr of priceRecords) pp.put({ id: uuid(), productId: prod.id, storeId: pr.storeId, amountMinor: pr.amountMinor, currency: "EUR", updatedAt: now() });
-  if (productId && unit === "pz") {
+  if (targetProductId && unit === "pz") {
     const sli = tx.objectStore("shoppingListItems");
     for (const it of existingListItems) {
       if (it.productId === prod.id && !Number.isInteger(it.quantity)) {
@@ -1545,44 +1623,54 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
     }
   }
   await txDone(tx);
+  let addedToList = false;
+  let alreadyInList = false;
   if (addToList) {
-    const addStoreEl = $("#addNewProdStore");
-    let targetStoreId = null;
-    if (addStoreEl) {
-      targetStoreId = addStoreEl.value || null;
+    const curListItems = await activeItems();
+    if (curListItems.some((i) => i.productId === prod.id)) {
+      alreadyInList = true;
     } else {
-      const st = await settings();
-      if (st.defaultStoreId && selected.includes(st.defaultStoreId)) targetStoreId = st.defaultStoreId;
-      else if (selected.length === 1) targetStoreId = selected[0];
-      else targetStoreId = st.defaultStoreId || null;
+      const addStoreEl = $("#addNewProdStore");
+      let targetStoreId = null;
+      if (addStoreEl) {
+        targetStoreId = addStoreEl.value || null;
+      } else {
+        const st = await settings();
+        if (st.defaultStoreId && selected.includes(st.defaultStoreId)) targetStoreId = st.defaultStoreId;
+        else if (selected.length === 1) targetStoreId = selected[0];
+        else targetStoreId = st.defaultStoreId || null;
+      }
+      const manualAmountMinor = addDiscountUnitMinor !== null ? Math.round(addDiscountUnitMinor * addQty) : null;
+      await actuallyAddItem(prod.id, targetStoreId, addQty, manualAmountMinor, addDiscountUnitMinor);
+      addedToList = true;
     }
-    const manualAmountMinor = addDiscountUnitMinor !== null ? Math.round(addDiscountUnitMinor * addQty) : null;
-    await actuallyAddItem(prod.id, targetStoreId, addQty, manualAmountMinor, addDiscountUnitMinor);
   }
-  const addedMsg = addToList ? "Articolo aggiunto e inserito nella lista" : "Articolo aggiunto";
+  const addedMsg = addedToList ? "Articolo aggiunto e inserito nella lista" : "Articolo aggiunto";
+  const savedMsg = addedToList ? "Articolo salvato e inserito nella lista" : (alreadyInList ? "Articolo salvato (gi\xE0 nella lista)" : "Articolo salvato");
+  const resultMsg = isNew ? addedMsg : savedMsg;
   if (returnPage === "addItem") {
     state.currentModal = null;
     state.currentModalKeep = false;
     await openAddItem();
-    showToast(productId ? "Articolo salvato" : addedMsg);
+    showToast(resultMsg);
   } else if (returnPage === "editor") {
     state.currentModal = null;
     state.currentModalKeep = false;
     await state.productReturnFn();
-    showToast("Articolo salvato");
+    showToast(resultMsg);
   } else if (returnPage === "categoryDetail") {
     state.currentModal = null;
     state.currentModalKeep = false;
     await openCategoryForm(returnCategoryId, true);
-    showToast("Articolo salvato");
+    showToast(resultMsg);
   } else if (returnPage === "categoryPicker") {
     state.currentModal = null;
     state.currentModalKeep = false;
     await openCategoryProductPicker(returnCategoryId);
-    showToast(productId ? "Articolo salvato" : addedMsg);
+    showToast(resultMsg);
   } else {
     closeModal(false);
-    if (returnPage === "list" && !productId) {
+    if (returnPage === "list" && isNew) {
       if (addToList) {
         await renderList();
         showToast(addedMsg);
@@ -1591,17 +1679,17 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
       }
     } else if (returnPage === "list") {
       await openAddItem();
-      showToast("Articolo aggiornato");
+      showToast(addedToList ? "Articolo aggiornato e inserito nella lista" : (alreadyInList ? "Articolo aggiornato (gi\xE0 nella lista)" : "Articolo aggiornato"));
     } else if (returnPage === "categories") {
       await renderCategories();
-      showToast("Articolo salvato");
-    } else if (!productId && returnPage === "products") {
+      showToast(resultMsg);
+    } else if (isNew && !saveAsNew && returnPage === "products") {
       await openProductForm(null, "products", null, null, categoryId);
       showToast(addedMsg);
     } else {
       state.page = "products";
       await render();
-      showToast("Articolo salvato");
+      showToast(resultMsg);
     }
   }
 }

@@ -548,7 +548,7 @@ export function modal(title, body, buttons = [], opts = {}) {
   if (opts.themed) modalClasses.push("modal-themed");
   if (opts.headerThemed) modalClasses.push("modal-header-themed");
   if (opts.stickyFooter) modalClasses.push("modal-has-sticky-footer");
-  const actionsHtml = buttons.length ? `<div class="modal-actions">${buttons.map((b, i) => `<button type="button" class="btn ${b.class || "btn-secondary"}" data-modal-action="${i}">${esc(b.label)}</button>`).join("")}</div>` : "";
+  const actionsHtml = buttons.length ? `<div class="modal-actions">${buttons.map((b, i) => `<button type="button" class="btn ${b.class || "btn-secondary"}"${b.id ? ` id="${esc(b.id)}"` : ""}${b.disabled ? " disabled" : ""} data-modal-action="${i}">${esc(b.label)}</button>`).join("")}</div>` : "";
   const bodyHtml = opts.stickyFooter ? `<div class="modal-scroll-body">${body}</div>` : body;
   const footerHtml = opts.stickyFooter ? `<div class="modal-sticky-footer">${opts.stickyFooterHtml || ""}${actionsHtml}</div>` : actionsHtml;
   const sectionHtml = `<section class="${modalClasses.join(" ")}" role="dialog" aria-modal="true" aria-label="${esc(title || "Finestra")}" tabindex="-1">${headerHtml}${bodyHtml}${footerHtml}</section>`;
@@ -581,6 +581,7 @@ export function modal(title, body, buttons = [], opts = {}) {
     });
   }
   $("#modalRoot").querySelectorAll("[data-modal-action]").forEach((el) => bindFastTap(el, async () => {
+    if (el.disabled) return;
     const b = buttons[Number(el.dataset.modalAction)];
     if (b.action) await b.action();
     else closeModal();
