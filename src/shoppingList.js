@@ -932,15 +932,15 @@ export function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor,
     </div>
     <div class="assign-pricing-card">
       <div class="inline-note manual-amount-box assign-discount-row assign-list-row" id="quickListPriceBox">
-        <label for="listPriceInput"><strong>Prezzo unitario<br>di LISTINO [&euro;/${esc(unit)}]</strong></label>
+        <label for="listPriceInput"><strong>Prezzo Unit.<br>di LISTINO</strong></label>
         <div class="manual-input-wrap">
-          <div class="name-box"><input id="listPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="6" placeholder="${curStore ? "0,00" : "N/D"}" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialListVal)}"${curStore ? "" : " disabled"}><button type="button" class="name-no" id="listPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="listPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div>
+          <div class="name-box"><input id="listPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="6" placeholder="${curStore ? "0,00" : "N/D"}" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialListVal)}"${curStore ? "" : " disabled"}><button type="button" class="name-no" id="listPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="listPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>
         </div>
       </div>
       <div class="inline-note manual-amount-box assign-discount-row" id="quickManualBox">
-        <label for="manualPriceInput"><strong>Prezzo unitario<br>SCONTATO [&euro;/${esc(unit)}]</strong></label>
+        <label for="manualPriceInput"><strong>Prezzo Unit.<br>SCONTATO</strong></label>
         <div class="manual-input-wrap">
-          <div class="name-box"><button type="button" class="manual-price-clear" id="manualPriceClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="manualPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialManualVal)}"><button type="button" class="name-no" id="manualPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="manualPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div>
+          <div class="name-box"><button type="button" class="manual-price-clear" id="manualPriceClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="manualPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialManualVal)}"><button type="button" class="name-no" id="manualPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="manualPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>
         </div>
       </div>
       <div class="assign-total-row" id="quickAmount"></div>

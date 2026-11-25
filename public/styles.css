@@ -2036,4 +2036,20 @@ input[type=search].search-input:placeholder-shown,
 .product-editor .store-price-row .price-eur{font-size:13.5px;font-weight:750;color:#123e6d;white-space:nowrap}
 @media(max-width:355px){.product-editor .store-price-row .name-box{width:116px}}
 
+/* v. 1.80 */
+/* Finestra Modifica assegnazioni: etichette Prezzo Unit. su 2 righe e unità €/[um] a destra delle caselle di testo */
+.assign-discount-row{gap:8px}
+.assign-discount-row label{white-space:nowrap;line-height:1.22}
+.assign-discount-row .manual-input-wrap{gap:5px}
+.assign-discount-row .name-box{width:132px}
+.assign-discount-row .price-eur{font-size:13.5px;font-weight:750;color:#123e6d;white-space:nowrap}
+@media(max-width:355px){.assign-discount-row .name-box{width:116px}}
+/* Finestra Dettaglio scontrino: nome articolo a tutta larghezza sulla prima riga e quantità spostata a destra appena sopra l'importo */
+.receipt-item-name{flex:1 1 auto;min-width:0}
+.receipt-item-meta{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.receipt-item-amounts{display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex:0 0 auto;text-align:right}
+.receipt-item-amounts .receipt-item-qty{line-height:1.2}
+.receipt-item-amounts .receipt-item-total{line-height:1.2}
+
+
 

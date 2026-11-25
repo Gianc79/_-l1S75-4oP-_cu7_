@@ -288,13 +288,17 @@ function renderReceiptItemRowHtml(it, opts = {}) {
     ${opts.topMetaHtml || ""}
     <div class="receipt-item-top">
       <span class="receipt-item-name">${formatReceiptItemNameHtml(it.productNameSnapshot)}</span>
-      <span class="receipt-item-qty">${qtyText}</span>
     </div>
     ${brandHtml}
-    <div class="receipt-item-cat">${esc(it.categoryNameSnapshot || "Senza reparto")}</div>
     <div class="receipt-item-bottom">
-      <span class="receipt-item-cat">${unitPriceHtml}</span>
-      <strong class="receipt-item-total">${totalHtml}</strong>
+      <div class="receipt-item-meta">
+        <div class="receipt-item-cat">${esc(it.categoryNameSnapshot || "Senza reparto")}</div>
+        <div class="receipt-item-cat">${unitPriceHtml}</div>
+      </div>
+      <div class="receipt-item-amounts">
+        <span class="receipt-item-qty">${qtyText}</span>
+        <strong class="receipt-item-total">${totalHtml}</strong>
+      </div>
     </div>
   </div>`;
 }

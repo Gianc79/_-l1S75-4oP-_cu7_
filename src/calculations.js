@@ -280,7 +280,7 @@ export function formatProductNetParts(packQtyRaw, packUnit, strictFormat = false
   }
   const netPart = qtyText && u ? `${qtyText}${u}` : qtyText;
   const pcs = !isPiecePackUnit(u) ? parsePackPieces(packPiecesRaw) : null;
-  const piecesPart = Number.isInteger(pcs) && pcs >= 1 && pcs <= 1000 ? `${pcs}pz` : "";
+  const piecesPart = Number.isInteger(pcs) && pcs > 1 && pcs <= 1000 ? `${pcs}pz` : "";
   return { piecesPart, netPart };
 }
 
