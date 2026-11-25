@@ -239,13 +239,27 @@ export function packQtyValid(q, packUnit = "kg") {
   return Math.abs(Math.round(q * 1e3) - q * 1e3) < 1e-6;
 }
 
+export function parsePackPieces(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  if (!/^\d+$/.test(s)) return NaN;
+  const n = Number(s);
+  if (!Number.isInteger(n) || n < 0 || n > 1000) return NaN;
+  return n;
+}
+
+export function packPiecesValid(raw) {
+  const n = parsePackPieces(raw);
+  return n === null || (Number.isInteger(n) && n >= 0 && n <= 1000);
+}
+
 export function formatPackQtyValue(q) {
   const n = Number(q);
   if (!Number.isFinite(n) || n <= 0) return "";
   return n.toLocaleString("it-IT", { maximumFractionDigits: 3, useGrouping: false });
 }
 
-export function composeProductDescription(itemName, brand, packQtyRaw, packUnit, strictFormat = false, packaging = "confezione") {
+export function composeProductDescription(itemName, brand, packQtyRaw, packUnit, strictFormat = false, packaging = "confezione", packPiecesRaw = null) {
   const n = String(itemName || "").trim().replace(/\s+/g, " ");
   const b = String(brand || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
   const u = String(packUnit || "").trim();
@@ -267,7 +281,10 @@ export function composeProductDescription(itemName, brand, packQtyRaw, packUnit,
         qtyText = rawQ.replace(".", ",");
       }
     }
-    qtyPart = qtyText && u ? `${qtyText}${u}` : qtyText;
+    const netPart = qtyText && u ? `${qtyText}${u}` : qtyText;
+    const pcs = !isPiecePackUnit(u) ? parsePackPieces(packPiecesRaw) : null;
+    const piecesPart = Number.isInteger(pcs) && pcs >= 1 && pcs <= 1000 ? `${pcs}pz` : "";
+    qtyPart = [piecesPart, netPart].filter(Boolean).join(" ");
   }
   return [n, b, qtyPart].filter(Boolean).join(" ");
 }
@@ -285,7 +302,7 @@ export function productDisplayParts(p) {
   if (p.packaging === "confezione" || p.packaging === "sfuso") {
     const f = extractProductFields(p);
     const isSfuso = f.packaging === "sfuso";
-    const qtyPart = composeProductDescription("", "", isSfuso ? 1 : p.packQty, f.packUnit, true, f.packaging);
+    const qtyPart = composeProductDescription("", "", isSfuso ? 1 : p.packQty, f.packUnit, true, f.packaging, f.packPieces);
     const title = [f.itemName, qtyPart].filter(Boolean).join(" ") || String(p.name || "").trim();
     const titleHtml = (f.itemName || qtyPart) ? formatTitleWithNetHtml(f.itemName, qtyPart, isSfuso) : esc(String(p.name || "").trim());
     const brand = String(f.brand || "").trim();
@@ -303,7 +320,7 @@ export function productSearchText(p) {
 
 export function extractProductFields(p) {
   if (!p) {
-    return { isLegacy: false, itemName: "", brand: "", packaging: "confezione", packUnit: "kg", packQtyStr: "", legacyName: "" };
+    return { isLegacy: false, itemName: "", brand: "", packaging: "confezione", packUnit: "kg", packQtyStr: "", packPieces: null, packPiecesStr: "", legacyName: "" };
   }
   if (p.packaging === "confezione" || p.packaging === "sfuso") {
     const packaging = p.packaging;
@@ -314,7 +331,10 @@ export function extractProductFields(p) {
     const packQtyStr = packaging === "sfuso"
       ? (isPiecePackUnit(packUnit) ? "1" : "1,000")
       : (Number.isFinite(Number(p.packQty)) && Number(p.packQty) > 0 ? formatPackQtyValue(Number(p.packQty)) : "");
-    return { isLegacy: false, itemName: p.itemName || "", brand: String(p.brand || "").toLocaleUpperCase("it"), packaging, packUnit, packQtyStr, legacyName: "" };
+    const rawPcs = packaging === "confezione" && !isPiecePackUnit(packUnit) ? parsePackPieces(p.packPieces) : null;
+    const packPieces = Number.isInteger(rawPcs) && rawPcs >= 1 && rawPcs <= 1000 ? rawPcs : null;
+    const packPiecesStr = packaging === "confezione" ? (isPiecePackUnit(packUnit) ? packQtyStr : (packPieces !== null ? String(packPieces) : "")) : "";
+    return { isLegacy: false, itemName: p.itemName || "", brand: String(p.brand || "").toLocaleUpperCase("it"), packaging, packUnit, packQtyStr, packPieces, packPiecesStr, legacyName: "" };
   }
   const packaging = (p.unit === "kg" || p.unit === "lt" || p.unit === "l" || p.unit === "m") ? "sfuso" : "confezione";
   let packUnit = (p.unit === "lt" || p.unit === "l") ? "lt" : (p.unit === "m" ? "m" : "kg");
@@ -334,14 +354,14 @@ export function extractProductFields(p) {
       }
     }
   }
-  return { isLegacy: true, itemName, brand: "", packaging, packUnit, packQtyStr, legacyName: String(p.name || "").trim() };
+  return { isLegacy: true, itemName, brand: "", packaging, packUnit, packQtyStr, packPieces: null, packPiecesStr: "", legacyName: String(p.name || "").trim() };
 }
 
 export function packQtyPlaceholderFor(packUnit) {
   if (packUnit === "pz") return "Es. 6";
   if (packUnit === "g" || packUnit === "ml") return "Es. 500";
-  if (packUnit === "cl") return "Es. 75";
-  if (packUnit === "lt") return "Es. 1,5";
+  if (packUnit === "cl") return "Es. 50";
+  if (packUnit === "lt") return "Es. 0,5";
   if (packUnit === "m") return "Es. 25";
   if (packUnit === "cm") return "Es. 30";
   return "Es. 0,5";

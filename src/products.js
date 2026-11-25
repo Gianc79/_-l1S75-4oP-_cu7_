@@ -1,7 +1,7 @@
 // Gestione catalogo articoli e modulo creazione/modifica prodotto
 import { state } from "./state.js";
 import { PROD_BRAND_MAX, PROD_CONFEZIONE_UNITS, PROD_LENGTH_UNITS, PROD_NAME_MAX, PROD_SFUSO_UNITS, PROD_VOLUME_UNITS, PROD_WEIGHT_UNITS, SVG_CHK, SVG_CIRCLED_PLUS, SVG_CIRCLE_X, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
-import { $, composeProductDescription, displayUnit, esc, eurosFromInput, extractProductFields, filterBySearch, fitStoreChipLabels, fmtQtyUnit, formatPackQtyValue, formatTitleWithNetHtml, isLengthPackUnit, isPiecePackUnit, isVolumePackUnit, isWeightPackUnit, norm, now, packQtyPlaceholderFor, packQtyValid, parseQty, productDisplayParts, productSearchText, qtyValid, quantityStepValue, salesUnitForPackaging, storeChipHtml, storeHasColors, storesDescFor, uuid } from "./calculations.js";
+import { $, composeProductDescription, displayUnit, esc, eurosFromInput, extractProductFields, filterBySearch, fitStoreChipLabels, fmtQtyUnit, formatPackQtyValue, formatTitleWithNetHtml, isLengthPackUnit, isPiecePackUnit, isVolumePackUnit, isWeightPackUnit, norm, now, packQtyPlaceholderFor, packQtyValid, parsePackPieces, parseQty, productDisplayParts, productSearchText, qtyValid, quantityStepValue, salesUnitForPackaging, storeChipHtml, storeHasColors, storesDescFor, uuid } from "./calculations.js";
 import { allCategoriesSorted, allProductsSorted, allStoresSorted, categoryMap, getAll, getOne, putOne, settings, storeIdsForProduct, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, decorateInput, forceUppercaseInput, infoPop, modal, releaseModalKeyboard, selectAllOnFocus, setDropdownValue, showToast, singleFilterHtml, swipeWrap, tipBtn, updateSingleFilterUI, wireCustomDropdown, wireSingleFilter } from "./ui.js";
 import { actuallyAddItem, openAddItem, openNewListItemEditor, renderList } from "./shoppingList.js";
@@ -204,15 +204,19 @@ export async function openProductForm(productId, returnPage = "products", return
   const initialPackaging = initFields.packaging;
   const initialPackUnit = initFields.packUnit;
   const initialPackQtyStr = initialPackaging === "sfuso" ? (isPiecePackUnit(initialPackUnit) ? "1" : "1,000") : initFields.packQtyStr;
+  const initialPackPiecesStr = initialPackaging === "sfuso" ? "" : (isPiecePackUnit(initialPackUnit) ? initialPackQtyStr : initFields.packPiecesStr);
   const initialSalesUnit = salesUnitForPackaging(initialPackaging, initialPackUnit);
-  const buildDescPreviewHtml = (itemNameVal, brandVal, packQtyVal, packUnitVal, packVal) => {
+  const netContentTipHtml = (packVal) => packVal === "sfuso"
+    ? 'Riportare solo l\u2019unit\xE0 di misura.<br>Es. Formaggio al banco: "kg" o "g";<br>Carta da forno: "m".'
+    : 'Riportare il contenuto netto della confezione (Cf).<br>Es. Pomodori in confezione da 500 g:<br>selezionare "g" e digitare 500.';
+  const buildDescPreviewHtml = (itemNameVal, brandVal, packQtyVal, packUnitVal, packVal, packPiecesVal = "") => {
     const isSfuso = packVal === "sfuso";
-    const qtyPart = composeProductDescription("", "", packQtyVal, packUnitVal, false, packVal);
+    const qtyPart = composeProductDescription("", "", packQtyVal, packUnitVal, false, packVal, packPiecesVal);
     const line1Html = formatTitleWithNetHtml(itemNameVal, qtyPart, isSfuso);
     const line2 = String(brandVal || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
     return `<span class="prod-desc-line1">${line1Html || "&nbsp;"}</span><span class="prod-desc-line2">${line2 ? esc(line2) : "&nbsp;"}</span>`;
   };
-  const initialDescHtml = buildDescPreviewHtml(initFields.itemName, initFields.brand, initialPackQtyStr, initialPackUnit, initialPackaging);
+  const initialDescHtml = buildDescPreviewHtml(initFields.itemName, initFields.brand, initialPackQtyStr, initialPackUnit, initialPackaging, initialPackPiecesStr);
   const initialIsWeight = isWeightPackUnit(initialPackUnit);
   const initialIsVol = isVolumePackUnit(initialPackUnit);
   const initialIsLen = isLengthPackUnit(initialPackUnit);
@@ -220,6 +224,7 @@ export async function openProductForm(productId, returnPage = "products", return
   const initialWeightLabel = initialIsWeight ? initialPackUnit : "kg";
   const initialVolumeLabel = initialIsVol ? initialPackUnit : "lt";
   const initialLengthLabel = initialIsLen ? initialPackUnit : "m";
+  const initialPiecesDisabled = initialPackaging === "sfuso" || initialIsPiece;
   const storeIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2-5H5L3 9Z"/><path d="M5 9v10h14V9M9 19v-6h6v6"/></svg>';
   const packIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/><path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/></svg>';
   const looseIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 9h14l-1.5 11h-11L5 9Z"/><circle cx="12" cy="14" r="2.2"/></svg>';
@@ -233,13 +238,13 @@ export async function openProductForm(productId, returnPage = "products", return
   });
   const initialDisplayUnit = displayUnit(initialSalesUnit, initialPackaging);
   const addListBoxHtml = !productId ? `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-add-fields is-inactive" id="addNewProdFields"><div class="new-prod-store-row">${customDropdown("addNewProdStore", initialAddStore, addStoreOptions, true, true)}</div><div class="new-prod-qty-row" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0<br>[<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialSalesUnit))}" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div><div class="new-prod-discount-row manual-amount-box" id="addNewProdDiscountRow"><label for="addNewProdDiscount">Prezzo Unit.<br><strong>SCONTATO</strong></label><div class="manual-input-wrap"><div class="name-box"><button type="button" class="manual-price-clear" id="addNewProdDiscountClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="addNewProdDiscount" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdDiscountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdDiscountOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span></span></div></div></div></div>` : "";
+  const packagingTipHtml = `<div class="info-pop tip-pop" id="prodPackagingTip" hidden><div>Alcuni esempi:</div><table class="tip-examples-table"><thead><tr><th>ARTICOLO</th><th>IMBALLO</th></tr></thead><tbody><tr><td>Patate sfuse</td><td>Sfuso (al kg)</td></tr><tr><td>Patate in rete da 2kg</td><td>Confezione (2kg)</td></tr><tr><td>Uova sfuse</td><td>Sfuso (al pz)</td></tr><tr><td>Uova in cartone 6pz</td><td>Confezione (6pz)</td></tr><tr><td>Cassa di 6 Bott. da 2lt</td><td>Confezione (12lt)</td></tr></tbody></table></div>`;
   const body = `<div class="product-editor"><form id="productForm"><div class="product-main-card">
     ${initFields.isLegacy ? `<div class="prod-legacy-note">Articolo da versione precedente (<strong>${esc(initFields.legacyName)}</strong>): completa i campi qui sotto per uniformare la descrizione.</div>` : ""}
     <div class="field"><div class="label-row"><label for="prodCategory">Reparto</label><span class="req req-pill" id="reqCat">Obbligatorio</span></div>${customDropdown("prodCategory", selectedCategory, [{ id: "", name: "Seleziona reparto" }].concat(cats.map((c) => ({ id: c.id, name: c.name })), [{ id: "__new__", name: "\uFF0B Nuovo reparto" }]), false, true, true)}</div>
     <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodItemName">Nome</label>${tipBtn("prodNameTip", "Suggerimento nome articolo")}<span class="label-hint">(max ${PROD_NAME_MAX} caratteri)</span></div><span class="req req-pill" id="reqItemName">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNameTip" hidden>Inserire il nome dell\u2019articolo senza indicare la marca (es. Aceto di mele).</div><input id="prodItemName" type="text" maxlength="${PROD_NAME_MAX}" enterkeyhint="next" value="${esc(initFields.itemName)}" required autocomplete="off" placeholder="Es. Olio EVO, Gnocchi, Wafers"></div>
     <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodBrand">Marca</label><span class="label-hint">(max ${PROD_BRAND_MAX} caratteri)</span></div></div><div class="brand-ac-wrap" id="prodBrandAcWrap"><input id="prodBrand" type="text" maxlength="${PROD_BRAND_MAX}" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" value="${esc(initFields.brand)}" placeholder="Digitare eventuale marca" autocomplete="off" aria-autocomplete="inline"></div></div>
-    <div class="field"><div class="label-row"><label id="prodPackagingLbl">Imballo</label></div><input type="hidden" id="prodPackaging" value="${esc(initialPackaging)}"><div class="prod-seg prod-seg-2" id="prodPackagingSeg" role="radiogroup" aria-labelledby="prodPackagingLbl"><button type="button" class="prod-seg-btn${initialPackaging === "confezione" ? " active" : ""}" data-pack-val="confezione" role="radio" aria-checked="${initialPackaging === "confezione" ? "true" : "false"}">${packIcon}<span>Confezione</span></button><button type="button" class="prod-seg-btn${initialPackaging === "sfuso" ? " active" : ""}" data-pack-val="sfuso" role="radio" aria-checked="${initialPackaging === "sfuso" ? "true" : "false"}">${looseIcon}<span>Sfuso</span></button></div></div>
-    <div class="field"><div class="label-row"><div class="label-title-group"><label for="prodPackQty" id="prodNetContentLbl">Contenuto netto</label>${tipBtn("prodNetContentTip", "Suggerimento contenuto netto")}</div><span class="req req-pill" id="reqPackQty">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNetContentTip" hidden>Riportare il contenuto netto della confezione<strong> (Cf)</strong> o solo l\u2019unit\u00E0 di misura se l\u2019articolo viene venduto sfuso.<ul class="tip-list"><li><em>Cassa di acqua di 6 bottiglie da 1,5 lt &gt; riportare <strong>9 lt</strong>;</em></li><li><em>Pomodori in confezione da 500 g &gt; riportare <strong>500 g</strong>;</em></li><li><em>Pomodori sfusi &gt; riportare <strong>kg</strong>.</em></li></ul></div><input type="hidden" id="prodPackUnit" value="${esc(initialPackUnit)}"><div class="prod-net-row"><div class="prod-seg prod-um-seg${initialPackaging === "sfuso" ? " is-loose" : ""}" id="prodPackUnitSeg" role="group" aria-labelledby="prodNetContentLbl"><div class="prod-um-dd" data-um-group="weight"><button type="button" class="prod-seg-btn prod-um-btn${initialIsWeight ? " active" : ""}" data-um-trigger="weight" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialWeightLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="weight" role="listbox" hidden>${PROD_WEIGHT_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><div class="prod-um-dd" data-um-group="volume"><button type="button" class="prod-seg-btn prod-um-btn${initialIsVol ? " active" : ""}" data-um-trigger="volume" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialVolumeLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="volume" role="listbox" hidden>${PROD_VOLUME_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><div class="prod-um-dd" data-um-group="length"><button type="button" class="prod-seg-btn prod-um-btn${initialIsLen ? " active" : ""}" data-um-trigger="length" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialLengthLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="length" role="listbox" hidden>${PROD_LENGTH_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><button type="button" class="prod-seg-btn prod-um-btn prod-um-direct${initialIsPiece ? " active" : ""}" data-um-direct="pz" aria-pressed="${initialIsPiece ? "true" : "false"}"><span class="prod-um-label">pz</span></button></div><div class="prod-net-qty-row${initialPackaging === "sfuso" ? " is-loose" : ""}" id="prodNetQtyRow"><label class="prod-net-qty-lbl" for="prodPackQty">Valore</label><div class="prod-net-qty-ctrl"><div class="name-box prod-qty-box"><input id="prodPackQty" type="text" inputmode="${initialIsPiece ? "numeric" : "decimal"}" enterkeyhint="done" maxlength="7" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialPackQtyStr)}" placeholder="${esc(packQtyPlaceholderFor(initialPackUnit))}" ${initialPackaging === "sfuso" ? 'disabled readonly tabindex="-1" aria-disabled="true"' : ""}><button type="button" class="name-no" id="prodPackQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="prodPackQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="prod-qty-unit-tag" id="prodPackQtyUnitTag">${esc(initialPackUnit)}</span></div></div></div></div>
+    <div class="field prod-pack-field"><div class="label-row"><div class="label-title-group"><label id="prodPackagingLbl">Imballo</label>${tipBtn("prodPackagingTip", "Suggerimento imballo")}</div></div>${packagingTipHtml}<input type="hidden" id="prodPackaging" value="${esc(initialPackaging)}"><input type="hidden" id="prodPackUnit" value="${esc(initialPackUnit)}"><div class="prod-pack-multipage ${initialPackaging === "sfuso" ? "is-sfuso" : "is-confezione"}" id="prodPackagingMultipage"><div class="prod-pack-tabs" id="prodPackagingSeg" role="tablist" aria-labelledby="prodPackagingLbl"><button type="button" class="prod-pack-tab${initialPackaging === "confezione" ? " active" : ""}" data-pack-val="confezione" role="tab" aria-selected="${initialPackaging === "confezione" ? "true" : "false"}" aria-controls="prodPackPanel">${packIcon}<span>Confezione</span></button><button type="button" class="prod-pack-tab${initialPackaging === "sfuso" ? " active" : ""}" data-pack-val="sfuso" role="tab" aria-selected="${initialPackaging === "sfuso" ? "true" : "false"}" aria-controls="prodPackPanel">${looseIcon}<span>Sfuso</span></button></div><div class="prod-pack-panel" id="prodPackPanel" role="tabpanel"><div class="label-row"><div class="label-title-group"><label for="prodPackQty" id="prodNetContentLbl">Contenuto netto</label>${tipBtn("prodNetContentTip", "Suggerimento contenuto netto")}</div><span class="req req-pill" id="reqPackQty">Obbligatorio</span></div><div class="info-pop tip-pop" id="prodNetContentTip" hidden>${netContentTipHtml(initialPackaging)}</div><div class="prod-net-row"><div class="prod-seg prod-um-seg${initialPackaging === "sfuso" ? " is-loose" : ""}" id="prodPackUnitSeg" role="group" aria-labelledby="prodNetContentLbl"><div class="prod-um-dd" data-um-group="weight"><button type="button" class="prod-seg-btn prod-um-btn${initialIsWeight ? " active" : ""}" data-um-trigger="weight" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialWeightLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="weight" role="listbox" hidden>${PROD_WEIGHT_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><div class="prod-um-dd" data-um-group="volume"><button type="button" class="prod-seg-btn prod-um-btn${initialIsVol ? " active" : ""}" data-um-trigger="volume" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialVolumeLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="volume" role="listbox" hidden>${PROD_VOLUME_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><div class="prod-um-dd" data-um-group="length"><button type="button" class="prod-seg-btn prod-um-btn${initialIsLen ? " active" : ""}" data-um-trigger="length" aria-haspopup="listbox" aria-expanded="false"><span class="prod-um-label">${esc(initialLengthLabel)}</span>${chevSvg}</button><div class="prod-um-menu" data-um-menu="length" role="listbox" hidden>${PROD_LENGTH_UNITS.map((u) => `<button type="button" class="prod-um-opt${initialPackUnit === u ? " selected" : ""}" data-um-val="${u}" role="option" aria-selected="${initialPackUnit === u ? "true" : "false"}">${u}</button>`).join("")}</div></div><button type="button" class="prod-seg-btn prod-um-btn prod-um-direct${initialIsPiece ? " active" : ""}" data-um-direct="pz" aria-pressed="${initialIsPiece ? "true" : "false"}"><span class="prod-um-label">pz</span></button></div><div class="prod-net-qty-row${initialPackaging === "sfuso" ? " is-loose" : ""}" id="prodNetQtyRow"><label class="prod-net-qty-lbl" for="prodPackQty">Quantit\xE0</label><div class="prod-net-qty-ctrl"><div class="name-box prod-qty-box"><input id="prodPackQty" type="text" inputmode="${initialIsPiece ? "numeric" : "decimal"}" enterkeyhint="done" maxlength="7" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialPackQtyStr)}" placeholder="${esc(packQtyPlaceholderFor(initialPackUnit))}" ${initialPackaging === "sfuso" ? 'disabled readonly tabindex="-1" aria-disabled="true"' : ""}><button type="button" class="name-no" id="prodPackQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="prodPackQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="prod-qty-unit-tag" id="prodPackQtyUnitTag">${esc(initialPackUnit)}</span></div></div><div class="prod-net-qty-row prod-net-pieces-row${initialPiecesDisabled ? " is-disabled" : ""}" id="prodNetPiecesRow"><label class="prod-net-qty-lbl" for="prodPackPieces">Nr. pezzi/Cf</label><div class="qty-row prod-pieces-ctrl"><div class="name-box prod-pieces-box"><input id="prodPackPieces" type="text" inputmode="numeric" enterkeyhint="done" maxlength="4" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialPackPiecesStr)}" ${initialPiecesDisabled ? 'disabled readonly tabindex="-1" aria-disabled="true"' : ""}><button type="button" class="name-no" id="prodPackPiecesNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="prodPackPiecesOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="prodPackPiecesMinus" aria-label="Diminuisci numero pezzi per confezione"${initialPiecesDisabled ? " disabled" : ""}>\u2212</button><button type="button" id="prodPackPiecesPlus" aria-label="Aumenta numero pezzi per confezione"${initialPiecesDisabled ? " disabled" : ""}>\uFF0B</button></div></div></div></div></div></div>
     <div class="field prod-desc-field" id="prodDescCard"><div class="label-row"><label>Anteprima descrizione completa</label></div><div class="prod-desc-value" id="prodDescValue" aria-live="polite">${initialDescHtml}</div></div>
     ${addListBoxHtml}
   </div>
@@ -278,7 +283,9 @@ export async function openProductForm(productId, returnPage = "products", return
   const itemNameInp = $("#prodItemName");
   const brandInp = $("#prodBrand");
   const packInp = $("#prodPackaging");
+  const packMultipage = $("#prodPackagingMultipage");
   const packSeg = $("#prodPackagingSeg");
+  const netContentTipEl = $("#prodNetContentTip");
   const packUnitInp = $("#prodPackUnit");
   const packUnitSeg = $("#prodPackUnitSeg");
   const weightTrigger = packUnitSeg?.querySelector('[data-um-trigger="weight"]');
@@ -294,6 +301,13 @@ export async function openProductForm(productId, returnPage = "products", return
   const packQtyOk = $("#prodPackQtyOk");
   const packQtyUnitTag = $("#prodPackQtyUnitTag");
   const prodNetQtyRow = $("#prodNetQtyRow");
+  const prodNetPiecesRow = $("#prodNetPiecesRow");
+  const packPiecesInp = $("#prodPackPieces");
+  const packPiecesBox = packPiecesInp?.closest(".name-box");
+  const packPiecesNo = $("#prodPackPiecesNo");
+  const packPiecesOk = $("#prodPackPiecesOk");
+  const packPiecesMinus = $("#prodPackPiecesMinus");
+  const packPiecesPlus = $("#prodPackPiecesPlus");
   const descValueEl = $("#prodDescValue");
   const storesDescEl = $("#prodStoresDesc");
 
@@ -318,7 +332,9 @@ export async function openProductForm(productId, returnPage = "products", return
   let savedAddDisc = "";
   let lastConfezioneUnit = initialPackaging === "confezione" ? initialPackUnit : "kg";
   let lastConfezioneQty = initialPackaging === "confezione" ? initFields.packQtyStr : "";
+  let lastConfezionePieces = initialPackaging === "confezione" && !isPiecePackUnit(initialPackUnit) ? initFields.packPiecesStr : "";
   let savedPackQty = packQtyInp ? packQtyInp.value.trim() : "";
+  let savedPackPieces = packPiecesInp ? packPiecesInp.value.trim() : "";
 
   const currentSalesUnit = () => salesUnitForPackaging(packInp?.value || "confezione", packUnitInp?.value || "kg");
 
@@ -329,7 +345,34 @@ export async function openProductForm(productId, returnPage = "products", return
 
   let getEffectiveBrandVal = () => brandInp?.value || "";
   const syncDescriptionPreview = () => {
-    if (descValueEl) descValueEl.innerHTML = buildDescPreviewHtml(itemNameInp?.value, getEffectiveBrandVal(), packQtyInp?.value, packUnitInp?.value, packInp?.value || "confezione");
+    if (descValueEl) descValueEl.innerHTML = buildDescPreviewHtml(itemNameInp?.value, getEffectiveBrandVal(), packQtyInp?.value, packUnitInp?.value, packInp?.value || "confezione", packPiecesInp?.value);
+  };
+
+  const syncPackPiecesState = () => {
+    if (!packPiecesInp) return;
+    const pack = packInp?.value || "confezione";
+    const u = packUnitInp?.value || "kg";
+    const isSfuso = pack === "sfuso";
+    const isPz = !isSfuso && isPiecePackUnit(u);
+    const disabled = isSfuso || isPz;
+    prodNetPiecesRow?.classList.toggle("is-disabled", disabled);
+    packPiecesInp.disabled = disabled;
+    packPiecesInp.readOnly = disabled;
+    packPiecesInp.tabIndex = disabled ? -1 : 0;
+    packPiecesInp.setAttribute("aria-disabled", disabled ? "true" : "false");
+    if (packPiecesMinus) packPiecesMinus.disabled = disabled;
+    if (packPiecesPlus) packPiecesPlus.disabled = disabled;
+    if (disabled) {
+      packPiecesBox?.classList.remove("editing");
+      packPiecesInp.classList.remove("invalid");
+      if (document.activeElement === packPiecesInp) packPiecesInp.blur();
+      const val = isSfuso ? "" : (packQtyInp?.value ?? "");
+      packPiecesInp.value = val;
+      savedPackPieces = val;
+    } else {
+      packPiecesInp.value = lastConfezionePieces;
+      savedPackPieces = lastConfezionePieces;
+    }
   };
 
   const syncSalesUnitUI = () => {
@@ -353,6 +396,10 @@ export async function openProductForm(productId, returnPage = "products", return
 
   const applyPackUnit = (u) => {
     const pack = packInp?.value || "confezione";
+    const prevUnit = packUnitInp?.value || "kg";
+    if (pack === "confezione" && !isPiecePackUnit(prevUnit) && packPiecesInp && !packPiecesInp.disabled) {
+      lastConfezionePieces = packPiecesInp.value;
+    }
     const allowed = pack === "sfuso" ? PROD_SFUSO_UNITS : PROD_CONFEZIONE_UNITS;
     const resolved = allowed.includes(u)
       ? u
@@ -402,6 +449,7 @@ export async function openProductForm(productId, returnPage = "products", return
       }
     }
     packUnitSeg?.classList.remove("invalid");
+    syncPackPiecesState();
     syncSalesUnitUI();
     syncDescriptionPreview();
   };
@@ -410,13 +458,19 @@ export async function openProductForm(productId, returnPage = "products", return
     const prevPack = packInp?.value || "confezione";
     const resolved = packVal === "sfuso" ? "sfuso" : "confezione";
     closeUnitMenus();
+    if (prevPack === "confezione" && packPiecesInp && !packPiecesInp.disabled && !isPiecePackUnit(packUnitInp?.value)) {
+      lastConfezionePieces = packPiecesInp.value;
+    }
     if (packInp) packInp.value = resolved;
+    packMultipage?.classList.toggle("is-sfuso", resolved === "sfuso");
+    packMultipage?.classList.toggle("is-confezione", resolved !== "sfuso");
     packSeg?.querySelectorAll("[data-pack-val]").forEach((btn) => {
       const act = btn.dataset.packVal === resolved;
       btn.classList.toggle("active", act);
-      btn.setAttribute("aria-checked", act ? "true" : "false");
+      btn.setAttribute("aria-selected", act ? "true" : "false");
     });
     packSeg?.classList.remove("invalid");
+    if (netContentTipEl) netContentTipEl.innerHTML = netContentTipHtml(resolved);
     packUnitSeg?.classList.toggle("is-loose", resolved === "sfuso");
     prodNetQtyRow?.classList.toggle("is-loose", resolved === "sfuso");
     if (resolved === "sfuso") {
@@ -700,6 +754,13 @@ export async function openProductForm(productId, returnPage = "products", return
     });
   });
 
+  const syncPieceMirrorFromQty = () => {
+    if (packInp?.value === "confezione" && isPiecePackUnit(packUnitInp?.value) && packPiecesInp) {
+      packPiecesInp.value = packQtyInp?.value ?? "";
+      savedPackPieces = packPiecesInp.value;
+    }
+  };
+
   if (packQtyInp) {
     selectAllOnFocus(packQtyInp);
     const commitPackQty = (fromBlur = false) => {
@@ -727,6 +788,7 @@ export async function openProductForm(productId, returnPage = "products", return
         }
       }
       packQtyBox?.classList.remove("editing");
+      syncPieceMirrorFromQty();
       syncDescriptionPreview();
       if (!fromBlur) {
         packQtyInp.blur();
@@ -738,6 +800,7 @@ export async function openProductForm(productId, returnPage = "products", return
       packQtyInp.value = savedPackQty;
       lastConfezioneQty = savedPackQty;
       packQtyBox?.classList.remove("editing");
+      syncPieceMirrorFromQty();
       syncDescriptionPreview();
       packQtyInp.blur();
       releaseModalKeyboard();
@@ -755,6 +818,7 @@ export async function openProductForm(productId, returnPage = "products", return
       lastConfezioneQty = packQtyInp.value;
       $("#reqPackQty")?.classList.remove("err");
       packQtyInp.classList.remove("invalid");
+      syncPieceMirrorFromQty();
       syncDescriptionPreview();
     });
     packQtyNo?.addEventListener("mousedown", (e) => e.preventDefault());
@@ -782,12 +846,119 @@ export async function openProductForm(productId, returnPage = "products", return
     });
   }
 
+  if (packPiecesInp) {
+    selectAllOnFocus(packPiecesInp);
+    const commitPackPieces = (fromBlur = false) => {
+      if (packPiecesInp.disabled) return true;
+      const raw = packPiecesInp.value.trim();
+      if (!raw) {
+        savedPackPieces = "";
+        lastConfezionePieces = "";
+        packPiecesInp.value = "";
+        packPiecesInp.classList.remove("invalid");
+      } else {
+        const n = parsePackPieces(raw);
+        if (!Number.isNaN(n)) {
+          savedPackPieces = String(n);
+          lastConfezionePieces = savedPackPieces;
+          packPiecesInp.value = savedPackPieces;
+          packPiecesInp.classList.remove("invalid");
+        } else if (!fromBlur) {
+          showToast("Inserisci un numero intero da 0 a 1000.");
+          return false;
+        } else {
+          savedPackPieces = raw;
+          lastConfezionePieces = raw;
+        }
+      }
+      packPiecesBox?.classList.remove("editing");
+      syncDescriptionPreview();
+      if (!fromBlur) {
+        packPiecesInp.blur();
+        releaseModalKeyboard();
+      }
+      return true;
+    };
+    const cancelPackPieces = () => {
+      packPiecesInp.value = savedPackPieces;
+      lastConfezionePieces = savedPackPieces;
+      packPiecesInp.classList.remove("invalid");
+      packPiecesBox?.classList.remove("editing");
+      syncDescriptionPreview();
+      packPiecesInp.blur();
+      releaseModalKeyboard();
+    };
+    packPiecesInp.addEventListener("focus", () => {
+      if (packPiecesInp.disabled) {
+        packPiecesInp.blur();
+        return;
+      }
+      if (packPiecesBox && !packPiecesBox.classList.contains("editing")) savedPackPieces = packPiecesInp.value;
+    });
+    packPiecesInp.addEventListener("input", () => {
+      if (packPiecesInp.disabled) return;
+      if (packPiecesBox && !packPiecesBox.classList.contains("editing")) packPiecesBox.classList.add("editing");
+      lastConfezionePieces = packPiecesInp.value;
+      packPiecesInp.classList.remove("invalid");
+      syncDescriptionPreview();
+    });
+    packPiecesNo?.addEventListener("mousedown", (e) => e.preventDefault());
+    packPiecesNo?.addEventListener("click", (e) => {
+      e.preventDefault();
+      cancelPackPieces();
+    });
+    packPiecesOk?.addEventListener("mousedown", (e) => e.preventDefault());
+    packPiecesOk?.addEventListener("click", (e) => {
+      e.preventDefault();
+      commitPackPieces(false);
+    });
+    packPiecesInp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        e.stopPropagation();
+        commitPackPieces(false);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancelPackPieces();
+      }
+    });
+    packPiecesInp.addEventListener("blur", () => {
+      if (packPiecesBox && packPiecesBox.classList.contains("editing")) commitPackPieces(true);
+    });
+    packPiecesMinus?.addEventListener("click", () => {
+      if (packPiecesInp.disabled) return;
+      const parsed = parsePackPieces(packPiecesInp.value);
+      const cur = Number.isInteger(parsed) ? parsed : 0;
+      const next = String(Math.max(0, Math.min(1000, cur - 1)));
+      packPiecesInp.value = next;
+      savedPackPieces = next;
+      lastConfezionePieces = next;
+      packPiecesInp.classList.remove("invalid");
+      packPiecesBox?.classList.remove("editing");
+      syncDescriptionPreview();
+    });
+    packPiecesPlus?.addEventListener("click", () => {
+      if (packPiecesInp.disabled) return;
+      const parsed = parsePackPieces(packPiecesInp.value);
+      const cur = Number.isInteger(parsed) ? parsed : 0;
+      const next = String(Math.max(0, Math.min(1000, cur + 1)));
+      packPiecesInp.value = next;
+      savedPackPieces = next;
+      lastConfezionePieces = next;
+      packPiecesInp.classList.remove("invalid");
+      packPiecesBox?.classList.remove("editing");
+      syncDescriptionPreview();
+    });
+  }
+
   formEl._applyDraft = (d) => {
+    lastConfezionePieces = d.packPieces || "";
     applyPackaging(d.packaging, d.packUnit);
     if (d.packaging === "confezione" && packQtyInp) {
       packQtyInp.value = d.packQty;
       savedPackQty = d.packQty;
       lastConfezioneQty = d.packQty;
+      syncPackPiecesState();
       syncDescriptionPreview();
     }
   };
@@ -1046,6 +1217,7 @@ export async function openProductForm(productId, returnPage = "products", return
         packaging: packInp?.value || "confezione",
         packUnit: packUnitInp?.value || "kg",
         packQty: packInp?.value === "sfuso" ? lastConfezioneQty : (packQtyInp?.value ?? ""),
+        packPieces: packInp?.value === "confezione" && !isPiecePackUnit(packUnitInp?.value) ? (packPiecesInp?.value ?? "") : lastConfezionePieces,
         categoryId: currentSelectedCat,
         addToList: !!$("#addNewProdToList")?.checked,
         addStore: $("#addNewProdStore")?.value ?? "",
@@ -1218,6 +1390,10 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
   const packUnit = $("#prodPackUnit")?.value || "kg";
   const packQtyRaw = packaging === "sfuso" ? (isPiecePackUnit(packUnit) ? "1" : "1,000") : ($("#prodPackQty")?.value || "").trim();
   const packQty = packaging === "sfuso" ? 1 : parseQty(packQtyRaw);
+  const packPiecesRaw = packaging === "confezione" && !isPiecePackUnit(packUnit) ? ($("#prodPackPieces")?.value || "").trim() : "";
+  const packPiecesParsed = packaging === "confezione" && !isPiecePackUnit(packUnit) ? parsePackPieces(packPiecesRaw) : null;
+  const packPiecesBad = packaging === "confezione" && !isPiecePackUnit(packUnit) && Number.isNaN(packPiecesParsed);
+  const packPieces = Number.isInteger(packPiecesParsed) && packPiecesParsed >= 1 && packPiecesParsed <= 1000 ? packPiecesParsed : null;
   const categoryId = $("#prodCategory")?.value || "";
   const addToList = !productId && !!$("#addNewProdToList")?.checked;
 
@@ -1231,7 +1407,7 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
   const packQtyBad = packaging !== "sfuso" && !packQtyEmpty && !packQtyValid(packQty, packUnit);
   const catMiss = !categoryId || categoryId === "__new__";
 
-  if (catMiss || itemNameMiss || itemNameOver || brandOver || packMiss || packUnitMiss || packQtyEmpty || packQtyBad) {
+  if (catMiss || itemNameMiss || itemNameOver || brandOver || packMiss || packUnitMiss || packQtyEmpty || packQtyBad || packPiecesBad) {
     $("#reqCat")?.classList.toggle("err", catMiss);
     $("#prodCategoryTrigger")?.classList.toggle("invalid", catMiss);
     $("#reqItemName")?.classList.toggle("err", itemNameMiss || itemNameOver);
@@ -1241,27 +1417,31 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
     $("#prodPackUnitSeg")?.classList.toggle("invalid", packUnitMiss);
     $("#reqPackQty")?.classList.toggle("err", packUnitMiss || packQtyEmpty || packQtyBad);
     $("#prodPackQty")?.classList.toggle("invalid", packQtyEmpty || packQtyBad);
+    $("#prodPackPieces")?.classList.toggle("invalid", packPiecesBad);
     const scrollEl = $("#modalRoot .modal-scroll-body") || $("#modalRoot .modal");
-    const firstErrEl = catMiss ? $("#prodCategoryTrigger") : (itemNameMiss || itemNameOver) ? $("#prodItemName") : brandOver ? $("#prodBrand") : packMiss ? $("#prodPackagingSeg") : packUnitMiss ? $("#prodPackUnitSeg") : $("#prodPackQty");
+    const firstErrEl = catMiss ? $("#prodCategoryTrigger") : (itemNameMiss || itemNameOver) ? $("#prodItemName") : brandOver ? $("#prodBrand") : packMiss ? $("#prodPackagingSeg") : packUnitMiss ? $("#prodPackUnitSeg") : (packQtyEmpty || packQtyBad) ? $("#prodPackQty") : $("#prodPackPieces");
     if (firstErrEl && scrollEl) {
       firstErrEl.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     if (!catMiss && (itemNameMiss || itemNameOver)) $("#prodItemName")?.focus({ preventScroll: true });
     else if (!catMiss && !itemNameMiss && !itemNameOver && brandOver) $("#prodBrand")?.focus({ preventScroll: true });
     else if (!catMiss && !itemNameMiss && !itemNameOver && !brandOver && (packQtyEmpty || packQtyBad)) $("#prodPackQty")?.focus({ preventScroll: true });
+    else if (!catMiss && !itemNameMiss && !itemNameOver && !brandOver && !packQtyEmpty && !packQtyBad && packPiecesBad) $("#prodPackPieces")?.focus({ preventScroll: true });
     if (itemNameOver) {
       showToast(`Il nome pu\xF2 contenere al massimo ${PROD_NAME_MAX} caratteri.`);
     } else if (brandOver) {
       showToast(`La marca pu\xF2 contenere al massimo ${PROD_BRAND_MAX} caratteri.`);
     } else if (packQtyBad) {
       showToast(isPiecePackUnit(packUnit) ? "Inserisci una quantit\xE0 intera positiva." : "Inserisci una quantit\xE0 positiva con massimo 3 decimali.");
+    } else if (packPiecesBad) {
+      showToast("Inserisci un numero intero da 0 a 1000.");
     } else {
       showToast("Compila tutti i campi obbligatori.");
     }
     return;
   }
 
-  const name = composeProductDescription(itemName, brand, packQty, packUnit, true, packaging);
+  const name = composeProductDescription(itemName, brand, packQty, packUnit, true, packaging, packPieces);
   if (!name) {
     showToast("Compila tutti i campi obbligatori.");
     return;
@@ -1313,6 +1493,7 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
     packaging,
     packUnit,
     packQty: Math.round(packQty * 1e3) / 1e3,
+    packPieces,
     categoryId,
     unit,
     createdAt: existing?.createdAt || now(),

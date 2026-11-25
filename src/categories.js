@@ -13,10 +13,11 @@ export async function renderCategories() {
   const [cats, products] = await Promise.all([allCategoriesSorted(), getAll("products")]);
   const counts = {};
   for (const pr of products) if (pr.categoryId) counts[pr.categoryId] = (counts[pr.categoryId] || 0) + 1;
-  $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Reparti</h1><span class="title-count-badge" id="catsCount">${cats.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllCatsBtn" aria-label="Elimina tutti i reparti" title="Elimina tutti i reparti">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi reparti.<br>Per eliminare un singolo reparto, scorri il relativo riquadro verso destra.<br>In ogni reparto andranno poi aggiunti i relativi articoli.")}<div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="newCategoryBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo reparto</span></button></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="catsSearch" placeholder="Cerca reparto\u2026" aria-label="Cerca reparto" autocomplete="off" autocapitalize="characters"></div></div><div id="categoriesList"></div>`;
+  $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Reparti</h1><span class="title-count-badge" id="catsCount">${cats.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllCatsBtn" aria-label="Elimina tutti i reparti" title="Elimina tutti i reparti">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi reparti.<br>Per eliminare un singolo reparto, scorri il relativo riquadro verso destra.<br>In ogni reparto andranno poi aggiunti i relativi articoli.")}<div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="newCategoryBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo reparto</span></button></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="catsSearch" maxlength="25" placeholder="Cerca reparto\u2026" aria-label="Cerca reparto" autocomplete="off" autocapitalize="characters"></div></div><div id="categoriesList"></div>`;
   const list = $("#categoriesList"), inp = $("#catsSearch");
   forceUppercaseInput(inp);
   const paint = () => {
+    if (inp.value.length > 25) inp.value = inp.value.slice(0, 25);
     state.catsSearchQuery = inp.value;
     const filtered = filterBySearch(cats, state.catsSearchQuery, (c) => c.name);
     $("#catsCount").textContent = String(filtered.length);
@@ -44,7 +45,7 @@ export async function renderCategories() {
       showToast("Reparto eliminato");
     });
   };
-  inp.value = String(state.catsSearchQuery || "").toLocaleUpperCase("it");
+  inp.value = String(state.catsSearchQuery || "").toLocaleUpperCase("it").slice(0, 25);
   inp.addEventListener("input", paint);
   attachSearchClear(inp, paint);
   paint();

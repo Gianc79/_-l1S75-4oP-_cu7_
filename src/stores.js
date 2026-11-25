@@ -665,7 +665,7 @@ export async function openManageCategories(storeId) {
   };
   const showManageModal = async (savedScroll = null) => {
     const st = await settings(), allStores = await allStoresSorted();
-    const body = `<div class="store-name-sticky"><div class="field" style="margin:0 0 6px"><label for="storeNameInput">Nome <span class="label-hint">(max 20 caratteri)</span></label></div><div class="name-copy-row"><div class="field" style="flex:1;min-width:0;margin:0"><div class="name-box"><input id="storeNameInput" type="text" maxlength="20" value="${esc(s.name)}" autocomplete="off"><button type="button" class="name-no" id="storeNameNo" aria-label="Annulla modifica nome" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="storeNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><button type="button" class="btn btn-secondary copy-icon-btn store-color-icon-btn" id="storeColorBtn" aria-label="Personalizza colori supermercato" title="Colori supermercato">${colorSvg}</button></div></div>
+    const body = `<div class="store-name-sticky"><div class="field" style="margin:0 0 6px"><label for="storeNameInput">Nome <span class="label-hint">(max 20 caratteri)</span></label></div><div class="name-copy-row"><div class="field" style="flex:1;min-width:0;margin:0"><div class="name-box"><input id="storeNameInput" type="text" maxlength="20" value="${esc(s.name)}" autocomplete="off" autocapitalize="characters"><button type="button" class="name-no" id="storeNameNo" aria-label="Annulla modifica nome" title="Ripristina il nome precedente">${SVG_X}</button><button type="button" class="name-ok" id="storeNameOk" aria-label="Conferma nome" title="Conferma nome">${SVG_CHK}</button></div></div><button type="button" class="btn btn-secondary copy-icon-btn store-color-icon-btn" id="storeColorBtn" aria-label="Personalizza colori supermercato" title="Colori supermercato">${colorSvg}</button></div></div>
     <div id="manageCategoryContent"></div>`;
     modal("Configurazione supermercato", body, [], { closeButton: true, backdropClose: false, alignTop: true, themed: true, onClose: () => {
       if (state.page === "stores") renderStores();
@@ -676,6 +676,7 @@ export async function openManageCategories(storeId) {
       h.insertAdjacentHTML("afterend", '<div class="info-pop" hidden>Personalizza i colori di identificazione del supermercato, aggiungi i reparti che utilizzi e trascinali per ordinarli secondo il tuo percorso di spesa.</div>');
     }
     const nameIn = $("#storeNameInput"), nbox = nameIn.closest(".name-box");
+    forceUppercaseInput(nameIn);
     const syncNamePreview = () => {
       const hasColors = storeHasColors(s);
       nameIn.classList.toggle("has-store-colors", hasColors);
@@ -705,7 +706,8 @@ export async function openManageCategories(storeId) {
       }
     });
     $("#storeNameOk").addEventListener("click", async () => {
-      const name = nameIn.value.trim();
+      const name = nameIn.value.trim().toLocaleUpperCase("it");
+      nameIn.value = name;
       if (!name) {
         showToast("Inserisci il nome del supermercato.");
         return;
