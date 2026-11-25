@@ -796,7 +796,7 @@ export async function openAddItem() {
     return { storeOpts, catOpts, showAllStores: storeVal === "all", showAllCats: catVal === "all", allStoresDisabled: storeOpts.every((o) => o.disabled), allCatsDisabled: catOpts.every((o) => o.disabled) };
   };
   let curOpts = computeOpts();
-  const body = `<div class="prod-filters-box prod-filters-split"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear" id="resetAddFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid">${singleFilterHtml({ id: "addStoreFilter", allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: asv.store, allDisabled: curOpts.allStoresDisabled })}${singleFilterHtml({ id: "addCatFilter", allLabel: "Tutti i reparti", options: curOpts.catOpts, selectedValue: asv.cat, allDisabled: curOpts.allCatsDisabled })}</div></div><div class="field add-search-row"><input id="productSearch" type="search" class="search-input" placeholder="Cerca articolo o marca\u2026" aria-label="Cerca articolo o marca" autocomplete="off"><button type="button" class="create-product-btn-square" id="addFromListNewProdBtn" aria-label="Crea un nuovo articolo" title="Crea un nuovo articolo"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:25px;height:25px"><rect x="3" y="3.5" width="13.5" height="15.5" rx="3" fill="#2d6ea9"/><path d="M6 7.5h7.5M6 11h5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="17.2" r="5.2" fill="#159447" stroke="#ffffff" stroke-width="1.3"/><path d="M17.2 14.5v5.4M14.5 17.2h5.4" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div id="productChoices"></div>`;
+  const body = `<div class="prod-filters-box prod-filters-split"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear" id="resetAddFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid">${singleFilterHtml({ id: "addStoreFilter", allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: asv.store, allDisabled: curOpts.allStoresDisabled, searchMaxLength: 20, searchUppercase: true })}${singleFilterHtml({ id: "addCatFilter", allLabel: "Tutti i reparti", options: curOpts.catOpts, selectedValue: asv.cat, allDisabled: curOpts.allCatsDisabled, searchMaxLength: 25, searchUppercase: true })}</div></div><div class="field add-search-row"><input id="productSearch" type="search" class="search-input" placeholder="Cerca articolo o marca\u2026" aria-label="Cerca articolo o marca" autocomplete="off"><button type="button" class="create-product-btn-square" id="addFromListNewProdBtn" aria-label="Crea un nuovo articolo" title="Crea un nuovo articolo"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:25px;height:25px"><rect x="3" y="3.5" width="13.5" height="15.5" rx="3" fill="#2d6ea9"/><path d="M6 7.5h7.5M6 11h5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="17.2" r="5.2" fill="#159447" stroke="#ffffff" stroke-width="1.3"/><path d="M17.2 14.5v5.4M14.5 17.2h5.4" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div id="productChoices"></div>`;
   modal("Aggiungi articolo alla lista", body, [], { closeButton: true, backdropClose: false, onClose: () => renderList(), alignTop: true, themed: true });
   const inp = $("#productSearch"), choices = $("#productChoices");
   {
@@ -846,6 +846,8 @@ export async function openAddItem() {
     });
   };
   wireSingleFilter("addStoreFilter", {
+    searchMaxLength: 20,
+    searchUppercase: true,
     onSelect: (val) => {
       asv.store = val || "all";
       asv.scrollTop = 0;
@@ -853,6 +855,8 @@ export async function openAddItem() {
     }
   });
   wireSingleFilter("addCatFilter", {
+    searchMaxLength: 25,
+    searchUppercase: true,
     onSelect: (val) => {
       asv.cat = val || "all";
       asv.scrollTop = 0;

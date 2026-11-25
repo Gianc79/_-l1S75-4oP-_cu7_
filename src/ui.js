@@ -1380,7 +1380,7 @@ export function wireMultiFilter(id, { onAllChange, onItemChange }) {
   });
 }
 
-export function singleFilterHtml({ id, allLabel, options, selectedValue, allDisabled = false, keepOpen = false, searchQuery = "" }) {
+export function singleFilterHtml({ id, allLabel, options, selectedValue, allDisabled = false, keepOpen = false, searchQuery = "", searchMaxLength = null, searchUppercase = false }) {
   const selectedId = selectedValue || "all";
   const allOptions = [{ id: "all", label: allLabel, html: "", disabled: false }].concat(options || []);
   const current = allOptions.find((o) => o.id === selectedId) || allOptions[0];
@@ -1395,7 +1395,10 @@ export function singleFilterHtml({ id, allLabel, options, selectedValue, allDisa
     return `<button type="button" class="custom-dropdown-option${selected ? " selected" : ""}${opt.disabled ? " is-disabled" : ""}" role="option" aria-selected="${selected ? "true" : "false"}" ${opt.disabled ? 'disabled aria-disabled="true"' : ""} data-filter-opt="${esc(id)}" data-value="${esc(opt.id)}" data-filter-label="${esc(opt.label)}"${isHidden ? " hidden" : ""}>${opt.html || esc(opt.label)}</button>`;
   }).join("");
   const emptyHidden = !q || visibleCount > 0;
-  return `<div class="store-filter-wrap" data-single-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="listbox" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${current.html || esc(current.label)}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" role="listbox" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="dd-search" placeholder="Cerca\u2026" autocomplete="off" value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
+  const searchMaxAttr = Number.isInteger(searchMaxLength) && searchMaxLength > 0 ? ` maxlength="${searchMaxLength}"` : "";
+  const searchUpperAttr = searchUppercase ? ' autocapitalize="characters"' : "";
+  const searchCls = searchUppercase ? "dd-search force-upper" : "dd-search";
+  return `<div class="store-filter-wrap" data-single-filter="${esc(id)}"><button type="button" class="store-filter-trigger${active ? " has-filter" : ""}" id="${esc(id)}Trigger" aria-haspopup="listbox" aria-expanded="${keepOpen ? "true" : "false"}"><span id="${esc(id)}Summary">${current.html || esc(current.label)}</span><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg></button><div class="store-filter-menu" id="${esc(id)}Menu" role="listbox" ${keepOpen ? "" : "hidden"}><div class="dd-search-wrap"><input type="text" class="${searchCls}" placeholder="Cerca\u2026" autocomplete="off"${searchMaxAttr}${searchUpperAttr} value="${esc(searchQuery || "")}"><button type="button" class="dd-clear" ${searchQuery ? "" : "hidden"} aria-label="Cancella testo">\xD7</button></div>${optsHtml}<div class="filter-empty-msg muted small"${emptyHidden ? " hidden" : ""}>Nessun risultato.</div></div></div>`;
 }
 
 export function updateSingleFilterUI(id, { allLabel, options, selectedValue, allDisabled = false }) {
@@ -1420,13 +1423,17 @@ export function updateSingleFilterUI(id, { allLabel, options, selectedValue, all
   });
 }
 
-export function wireSingleFilter(id, { onSelect }) {
+export function wireSingleFilter(id, { onSelect, searchMaxLength = null, searchUppercase = false }) {
   const trigger = $(`#${id}Trigger`), menu = $(`#${id}Menu`);
   if (!trigger || !menu) return;
   const ds = menu.querySelector(".dd-search"), dcl = menu.querySelector(".dd-clear");
   const emptyMsg = menu.querySelector(".filter-empty-msg");
+  const maxLen = Number.isInteger(searchMaxLength) && searchMaxLength > 0 ? searchMaxLength : (ds && ds.maxLength > 0 ? ds.maxLength : 0);
+  if (ds && maxLen) ds.maxLength = maxLen;
+  if (ds && searchUppercase) forceUppercaseInput(ds);
   const applySearch = () => {
     if (!ds) return;
+    if (maxLen && ds.value.length > maxLen) ds.value = ds.value.slice(0, maxLen);
     if (dcl) dcl.hidden = !ds.value;
     const q = searchNorm(ds.value);
     const rows = [...menu.querySelectorAll("[data-filter-label]")];

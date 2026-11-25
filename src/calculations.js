@@ -259,42 +259,47 @@ export function formatPackQtyValue(q) {
   return n.toLocaleString("it-IT", { maximumFractionDigits: 3, useGrouping: false });
 }
 
+export function formatProductNetParts(packQtyRaw, packUnit, strictFormat = false, packaging = "confezione", packPiecesRaw = null) {
+  const u = String(packUnit || "").trim();
+  if (packaging === "sfuso") {
+    return { piecesPart: "", netPart: u ? `@${u}` : "" };
+  }
+  const rawQ = String(packQtyRaw ?? "").trim();
+  let qtyText = "";
+  if (rawQ) {
+    const q = parseQty(rawQ);
+    if (strictFormat) {
+      qtyText = formatPackQtyValue(q);
+    } else if (/[.,]$/.test(rawQ)) {
+      qtyText = rawQ.replace(".", ",");
+    } else if (Number.isFinite(q) && q > 0) {
+      qtyText = formatPackQtyValue(q);
+    } else {
+      qtyText = rawQ.replace(".", ",");
+    }
+  }
+  const netPart = qtyText && u ? `${qtyText}${u}` : qtyText;
+  const pcs = !isPiecePackUnit(u) ? parsePackPieces(packPiecesRaw) : null;
+  const piecesPart = Number.isInteger(pcs) && pcs >= 1 && pcs <= 1000 ? `${pcs}pz` : "";
+  return { piecesPart, netPart };
+}
+
 export function composeProductDescription(itemName, brand, packQtyRaw, packUnit, strictFormat = false, packaging = "confezione", packPiecesRaw = null) {
   const n = String(itemName || "").trim().replace(/\s+/g, " ");
   const b = String(brand || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it");
-  const u = String(packUnit || "").trim();
-  let qtyPart = "";
-  if (packaging === "sfuso") {
-    qtyPart = u ? `@${u}` : "";
-  } else {
-    const rawQ = String(packQtyRaw ?? "").trim();
-    let qtyText = "";
-    if (rawQ) {
-      const q = parseQty(rawQ);
-      if (strictFormat) {
-        qtyText = formatPackQtyValue(q);
-      } else if (/[.,]$/.test(rawQ)) {
-        qtyText = rawQ.replace(".", ",");
-      } else if (Number.isFinite(q) && q > 0) {
-        qtyText = formatPackQtyValue(q);
-      } else {
-        qtyText = rawQ.replace(".", ",");
-      }
-    }
-    const netPart = qtyText && u ? `${qtyText}${u}` : qtyText;
-    const pcs = !isPiecePackUnit(u) ? parsePackPieces(packPiecesRaw) : null;
-    const piecesPart = Number.isInteger(pcs) && pcs >= 1 && pcs <= 1000 ? `${pcs}pz` : "";
-    qtyPart = [piecesPart, netPart].filter(Boolean).join(" ");
-  }
+  const { piecesPart, netPart } = formatProductNetParts(packQtyRaw, packUnit, strictFormat, packaging, packPiecesRaw);
+  const qtyPart = [piecesPart, netPart].filter(Boolean).join(" ");
   return [n, b, qtyPart].filter(Boolean).join(" ");
 }
 
-export function formatTitleWithNetHtml(itemNameVal, qtyPart, isSfuso) {
+export function formatTitleWithNetHtml(itemNameVal, netPartVal, isSfuso, piecesPartVal = "") {
   const n = String(itemNameVal || "").trim().replace(/\s+/g, " ");
-  const q = String(qtyPart || "").trim();
-  if (!q) return esc(n);
-  const qHtml = isSfuso ? `<span class="desc-net-sfuso">${esc(q)}</span>` : esc(q);
-  return n ? `${esc(n)} ${qHtml}` : qHtml;
+  const pcs = String(piecesPartVal || "").trim();
+  const left = [n, pcs].filter(Boolean).join(" ");
+  const net = String(netPartVal || "").trim();
+  if (!net) return esc(left);
+  const netHtml = isSfuso ? `<span class="desc-net-sfuso">${esc(net)}</span>` : esc(net);
+  return left ? `${esc(left)} \u00B7 ${netHtml}` : netHtml;
 }
 
 export function productDisplayParts(p) {
@@ -302,9 +307,10 @@ export function productDisplayParts(p) {
   if (p.packaging === "confezione" || p.packaging === "sfuso") {
     const f = extractProductFields(p);
     const isSfuso = f.packaging === "sfuso";
-    const qtyPart = composeProductDescription("", "", isSfuso ? 1 : p.packQty, f.packUnit, true, f.packaging, f.packPieces);
-    const title = [f.itemName, qtyPart].filter(Boolean).join(" ") || String(p.name || "").trim();
-    const titleHtml = (f.itemName || qtyPart) ? formatTitleWithNetHtml(f.itemName, qtyPart, isSfuso) : esc(String(p.name || "").trim());
+    const { piecesPart, netPart } = formatProductNetParts(isSfuso ? 1 : p.packQty, f.packUnit, true, f.packaging, f.packPieces);
+    const left = [f.itemName, piecesPart].filter(Boolean).join(" ");
+    const title = (left && netPart) ? `${left} \u00B7 ${netPart}` : (left || netPart || String(p.name || "").trim());
+    const titleHtml = (left || netPart) ? formatTitleWithNetHtml(f.itemName, netPart, isSfuso, piecesPart) : esc(String(p.name || "").trim());
     const brand = String(f.brand || "").trim();
     return { title, titleHtml, brand, isSfuso };
   }
@@ -315,7 +321,8 @@ export function productDisplayParts(p) {
 
 export function productSearchText(p) {
   const dp = productDisplayParts(p);
-  return dp.brand ? `${dp.title} ${dp.brand}` : dp.title;
+  const cleanTitle = dp.title.replace(/\s*\u00B7\s*/g, " ");
+  return dp.brand ? `${cleanTitle} ${dp.brand}` : cleanTitle;
 }
 
 export function extractProductFields(p) {
