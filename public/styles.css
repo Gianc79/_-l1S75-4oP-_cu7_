@@ -2164,10 +2164,8 @@ input[type=search].search-input:placeholder-shown,
 .archive-date-select:focus,.archive-date-input:focus{outline:none;border-color:#174f86;background:#ffffff;box-shadow:0 0 0 2px rgba(23,79,134,.14)}
 .archive-date-field-row{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:8px}
 .archive-date-field-row label{margin:0;font-size:13px;font-weight:750;color:#174f86}
-.archive-date-menu-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:6px;border-top:1px dashed #cddce9}
+.archive-date-menu-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:6px;border-top:1px dashed #cddce9}
 .archive-date-menu-foot[hidden]{display:none!important}
-.archive-date-reset-btn{border:0;background:transparent;color:#b42318;font-size:12.5px;font-weight:750;padding:6px 4px;cursor:pointer}
-.archive-date-reset-btn:active{opacity:.7}
 .archive-date-apply-btn{min-height:34px!important;height:34px;padding:0 14px!important;border-radius:9px!important;font-size:13px!important;flex:0 0 auto!important;width:auto!important}
 @media(max-width:355px){
   .archive-date-mode-btn{font-size:11.5px;padding:4px 2px}
@@ -2181,4 +2179,45 @@ input[type=search].search-input:placeholder-shown,
 .modal-backdrop.keyboard-open .modal.modal-has-sticky-footer:has(.prod-detail-cancel-link) .modal-sticky-footer{padding:7px 16px 4px}
 .modal-backdrop.keyboard-open .modal-sticky-footer .modal-actions:has(.prod-detail-cancel-link){row-gap:3px}
 .modal-backdrop.keyboard-open .modal-sticky-footer .modal-actions .prod-detail-cancel-link{min-height:24px;height:24px;font-size:13px}
+/* Finestre Salva con nome, Carica lista e Archivio spese: cestini in formato 3D cliccabile sulla fascia blu */
+.list-section-banner .trash-mini{width:36px;height:36px;flex:0 0 36px;border-radius:10px;background:linear-gradient(180deg,#ffffff 0%,#d7e9fc 100%)!important;border:1.5px solid #b5d1ee!important;color:#174f86!important;box-shadow:inset 0 1px 0 #ffffff,0 3px 0 #092544,0 5px 10px rgba(6,22,42,.34)!important;transition:transform .12s ease,box-shadow .12s ease,color .12s ease,background .12s ease}
+.list-section-banner .trash-mini svg{width:20px;height:20px}
+.list-section-banner .trash-mini:hover:not(:disabled){background:linear-gradient(180deg,#ffffff 0%,#e2effd 100%)!important;border-color:#d4e5f7!important;color:#b42318!important}
+.list-section-banner .trash-mini:active:not(:disabled){background:linear-gradient(180deg,#e4f0fd 0%,#c7e0f9 100%)!important;color:#9f1d14!important;transform:translateY(2px);box-shadow:inset 0 1px 2px rgba(8,28,54,.20),0 1px 0 #092544,0 2px 4px rgba(6,22,42,.24)!important}
+.list-section-banner .trash-mini:disabled,.list-section-banner .trash-mini.dim{background:rgba(255,255,255,.16)!important;border:1px solid rgba(255,255,255,.26)!important;color:rgba(255,255,255,.65)!important;box-shadow:none!important;transform:none!important;opacity:.48;cursor:not-allowed}
+/* Finestra Archivio spese: sfondo azzurro per il riquadro dei filtri (coerente con FILTRA PER) */
+.archive-filter-bar,.modal.modal-themed .archive-filter-bar{background:#d9eafb;border-color:#a3c4e3;padding:7px 8px;gap:6px;border-radius:14px}
+/* Finestra Archivio spese: layout filtri compatto su 2 righe + casella ricerca smart (Nome spesa / Nome articolo / Marca) */
+.archive-filter-sticky{padding:6px 16px 3px}
+.archive-filter-top-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px;gap:6px}
+.archive-filter-top-row .store-filter-trigger{min-height:36px;height:36px;padding:4px 7px;gap:4px;font-size:12.5px;border-radius:10px}
+.archive-filter-top-row .store-filter-chevron{width:15px!important;height:15px!important;margin-left:1px;flex:0 0 15px}
+.archive-filter-top-row .archive-date-trigger-content{gap:4px}
+.archive-filter-top-row .archive-date-trigger-ico,.archive-filter-top-row .archive-date-trigger-ico .archive-cal-svg{width:16px;height:16px;flex:0 0 16px}
+.archive-filter-clear{width:36px;min-width:36px;height:36px;border-radius:10px;flex:0 0 36px}
+.archive-filter-clear svg{width:20px;height:20px}
+.archive-search-combo{position:relative;display:flex;align-items:stretch;height:36px;background:#ffffff;border:1.5px solid #bfcdd6;border-radius:10px;box-shadow:inset 0 1px 0 #fff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.08);transition:border-color .15s ease,box-shadow .15s ease}
+.archive-search-combo:focus-within,.archive-search-combo.has-query{border-color:#174f86;box-shadow:0 0 0 2px rgba(23,79,134,.14),0 2px 0 #8fb4d6}
+.archive-search-scope-wrap{position:relative;flex:0 0 auto;display:flex}
+.archive-filter-bar .archive-search-scope-btn{width:auto;min-height:100%;height:100%;padding:0 6px 0 9px;gap:3px;border:0;border-right:1.5px solid #c2d6ea;border-radius:8.5px 0 0 8.5px;background:linear-gradient(180deg,#eef6ff 0%,#d7e9fc 100%);color:#123e6d;font-size:12px;font-weight:800;box-shadow:none;white-space:nowrap;flex:0 0 auto}
+.archive-filter-bar .archive-search-scope-btn:hover{background:linear-gradient(180deg,#f5faff 0%,#dfeefc 100%)}
+.archive-filter-bar .archive-search-scope-btn[aria-expanded="true"]{border:0;border-right:1.5px solid #174f86;border-radius:8.5px 0 0 8.5px;background:linear-gradient(180deg,#dcecfd 0%,#c4dffb 100%);color:#0f3a66;box-shadow:none}
+.archive-filter-bar .archive-search-scope-btn .store-filter-chevron{width:14px;height:14px;margin-left:0;color:#174f86;flex:0 0 14px}
+.archive-filter-bar .archive-search-scope-wrap:has(.store-filter-trigger[aria-expanded="true"]) .archive-search-scope-menu{left:0;right:auto;min-width:158px;top:calc(100% + 9px);padding:5px;display:flex;flex-direction:column;gap:2px}
+.archive-search-scope-menu[hidden]{display:none!important}
+.archive-search-scope-opt{width:100%;min-height:36px;padding:6px 10px;border:0;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:13.5px;font-weight:650;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer;transition:background .12s ease,color .12s ease}
+.archive-search-scope-opt:hover{background:#eef5fc}
+.archive-search-scope-opt.is-selected{background:#e3f0fc;color:#123e6d;font-weight:800}
+.archive-scope-check{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;color:#174f86;opacity:0;flex:0 0 16px}
+.archive-scope-check svg{width:15px;height:15px;display:block}
+.archive-search-scope-opt.is-selected .archive-scope-check{opacity:1}
+.archive-search-combo .search-box{flex:1 1 auto;min-width:0;display:flex;align-items:center}
+.archive-filter-bar .archive-search-combo input[type=search].archive-combo-input{width:100%;min-width:0;min-height:0;height:100%;padding:0 30px 0 30px;border:0;border-radius:0 8.5px 8.5px 0;font-size:13.5px;background-color:transparent!important;background-position:9px center,0 0!important;background-size:16px,100% 100%!important;box-shadow:none!important}
+.archive-search-combo .search-box:has(.search-clear[hidden]) input[type=search].archive-combo-input{padding-right:10px}
+.archive-search-combo .search-clear{right:4px;width:24px;height:24px;font-size:17px}
+@media(max-width:355px){
+  .archive-filter-top-row .store-filter-trigger{font-size:11.5px;padding:4px 5px}
+  .archive-filter-bar .archive-search-scope-btn{font-size:11.5px;padding:0 5px 0 7px}
+  .archive-filter-bar .archive-search-combo input[type=search].archive-combo-input{font-size:13px}
+}
 

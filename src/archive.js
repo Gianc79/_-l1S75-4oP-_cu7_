@@ -63,6 +63,14 @@ function fmtIsoDate(isoDate, fallbackIsoTs) {
   return dt.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function fmtShortIsoDate(isoDate) {
+  if (typeof isoDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    const [y, m, d] = isoDate.split("-");
+    return `${d}/${m}/${y.slice(-2)}`;
+  }
+  return fmtIsoDate(isoDate);
+}
+
 function normalizeSnapshotPackUnit(u) {
   const raw = String(u || "").trim().toLowerCase();
   if (raw === "l") return "lt";
@@ -809,8 +817,36 @@ export async function openArchiveWindow(opts = {}) {
   const validActiveItems = curItems.filter((i) => !!pMap[i.productId]);
   const receipts = sortReceiptsDesc(receiptsRaw);
 
+  const SEARCH_FIELDS = {
+    receipt: {
+      key: "receipt",
+      shortLabel: "Spesa",
+      label: "Nome spesa",
+      placeholder: "Cerca nome spesa\u2026",
+      ariaLabel: "Cerca per nome spesa nell'archivio spese",
+      maxLength: 20
+    },
+    item: {
+      key: "item",
+      shortLabel: "Articolo",
+      label: "Nome articolo",
+      placeholder: "Cerca nome articolo\u2026",
+      ariaLabel: "Cerca per nome articolo nell'archivio spese",
+      maxLength: 25
+    },
+    brand: {
+      key: "brand",
+      shortLabel: "Marca",
+      label: "Marca",
+      placeholder: "Cerca marca\u2026",
+      ariaLabel: "Cerca per marca nell'archivio spese",
+      maxLength: 25
+    }
+  };
+
   let selectedStoreKey = opts.storeFilter || "all";
-  let searchQuery = opts.searchQuery || "";
+  let searchField = Object.prototype.hasOwnProperty.call(SEARCH_FIELDS, opts.searchField) ? opts.searchField : "receipt";
+  let searchQuery = (opts.searchQuery || "").slice(0, SEARCH_FIELDS[searchField].maxLength);
   const initDf = opts.dateFilter && typeof opts.dateFilter === "object" ? opts.dateFilter : {};
   let dateFilter = {
     mode: ["all", "month", "range", "day"].includes(initDf.mode) ? initDf.mode : "all",
@@ -836,11 +872,11 @@ export async function openArchiveWindow(opts = {}) {
     return false;
   };
 
-  const getDateFilterLabel = () => {
+  const getDateFilterLabel = (compact = false) => {
     if (dateFilter.mode === "month" && /^\d{4}-\d{2}$/.test(dateFilter.month)) {
       const [y, m] = dateFilter.month.split("-");
       const mName = IT_MONTHS[Number(m) - 1] || m;
-      return `${mName} ${y}`;
+      return compact ? `${mName.slice(0, 3)} ${y}` : `${mName} ${y}`;
     }
     if (dateFilter.mode === "day" && /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.day)) {
       return fmtIsoDate(dateFilter.day);
@@ -850,10 +886,10 @@ export async function openArchiveWindow(opts = {}) {
       const hasTo = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.to);
       if (hasFrom && hasTo) {
         const [lo, hi] = dateFilter.from <= dateFilter.to ? [dateFilter.from, dateFilter.to] : [dateFilter.to, dateFilter.from];
-        return `${fmtIsoDate(lo)} \u2013 ${fmtIsoDate(hi)}`;
+        return compact ? `${fmtShortIsoDate(lo)}\u2013${fmtShortIsoDate(hi)}` : `${fmtIsoDate(lo)} \u2013 ${fmtIsoDate(hi)}`;
       }
-      if (hasFrom) return `Dal ${fmtIsoDate(dateFilter.from)}`;
-      if (hasTo) return `Fino al ${fmtIsoDate(dateFilter.to)}`;
+      if (hasFrom) return compact ? `Dal ${fmtShortIsoDate(dateFilter.from)}` : `Dal ${fmtIsoDate(dateFilter.from)}`;
+      if (hasTo) return compact ? `Al ${fmtShortIsoDate(dateFilter.to)}` : `Fino al ${fmtIsoDate(dateFilter.to)}`;
     }
     return "Tutte le date";
   };
@@ -877,7 +913,7 @@ export async function openArchiveWindow(opts = {}) {
     return true;
   };
 
-  const currentArchiveOpts = () => ({ storeFilter: selectedStoreKey, searchQuery, dateFilter: { ...dateFilter } });
+  const currentArchiveOpts = () => ({ storeFilter: selectedStoreKey, searchField, searchQuery, dateFilter: { ...dateFilter } });
 
   const receiptStoreKey = (r) => {
     const rs = resolveReceiptStore(r, sMap);
@@ -921,7 +957,7 @@ export async function openArchiveWindow(opts = {}) {
       : (storeHasColors(info) ? storeChipHtml({ ...info, name: info.displayName }) : "");
     return { id: info.key, label: info.displayName, html, disabled: false };
   });
-  const allStoresLabel = "Tutti i supermercati";
+  const allStoresLabel = "Supermercati";
 
   const initMonthParts = (dateFilter.month || latestReceiptIso.slice(0, 7)).split("-");
   const initMonthYear = initMonthParts[0] || availableYears[0];
@@ -931,58 +967,74 @@ export async function openArchiveWindow(opts = {}) {
     return `<option value="${mm}"${mm === initMonthNum ? " selected" : ""}>${name}</option>`;
   }).join("");
   const yearOptsHtml = availableYears.map((y) => `<option value="${y}"${y === initMonthYear ? " selected" : ""}>${y}</option>`).join("");
+  const curSearchMeta = SEARCH_FIELDS[searchField];
+  const searchScopeOptsHtml = Object.values(SEARCH_FIELDS).map((sf) => `
+    <button type="button" class="archive-search-scope-opt${sf.key === searchField ? " is-selected" : ""}" data-search-field="${sf.key}" role="option" aria-selected="${sf.key === searchField ? "true" : "false"}">
+      <span>${sf.label}</span>
+      <span class="archive-scope-check" aria-hidden="true">${SVG_CHK}</span>
+    </button>`).join("");
 
   const filterBarHtml = receipts.length ? `
     <div class="archive-filter-sticky">
       <div class="archive-filter-bar">
         <div class="archive-filter-top-row">
-          ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey })}
-          <button type="button" class="filter-clear archive-filter-clear dim" id="resetArchiveFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri" disabled>${SVG_FILTER_CLEAR}</button>
-        </div>
-        <div class="store-filter-wrap archive-date-filter-wrap" id="archiveDateFilterWrap">
-          <button type="button" class="store-filter-trigger archive-date-trigger${isDateFilterActive() ? " has-filter" : ""}" id="archiveDateFilterTrigger" aria-haspopup="dialog" aria-expanded="false">
-            <span class="archive-date-trigger-content">
-              <span class="archive-date-trigger-ico" aria-hidden="true">${CALENDAR_ICON_SVG}</span>
-              <span id="archiveDateFilterSummary">${esc(getDateFilterLabel())}</span>
-            </span>
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-          <div class="store-filter-menu archive-date-filter-menu" id="archiveDateFilterMenu" role="dialog" aria-label="Filtra spese per data" hidden>
-            <div class="archive-date-modes" role="tablist" aria-label="Tipo di filtro data">
-              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "all" ? " active" : ""}" data-date-mode="all" role="tab" aria-selected="${dateFilter.mode === "all" ? "true" : "false"}">Tutte</button>
-              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "month" ? " active" : ""}" data-date-mode="month" role="tab" aria-selected="${dateFilter.mode === "month" ? "true" : "false"}">Mese</button>
-              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "range" ? " active" : ""}" data-date-mode="range" role="tab" aria-selected="${dateFilter.mode === "range" ? "true" : "false"}">Intervallo</button>
-              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "day" ? " active" : ""}" data-date-mode="day" role="tab" aria-selected="${dateFilter.mode === "day" ? "true" : "false"}">Giorno</button>
-            </div>
-            <div class="archive-date-panel" id="archiveDatePanelMonth"${dateFilter.mode === "month" ? "" : " hidden"}>
-              <div class="archive-date-month-grid">
-                <select id="archiveDateMonthSelect" class="archive-date-select" aria-label="Mese">${monthOptsHtml}</select>
-                <select id="archiveDateYearSelect" class="archive-date-select" aria-label="Anno">${yearOptsHtml}</select>
+          ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey, searchMaxLength: 20, searchUppercase: true })}
+          <div class="store-filter-wrap archive-date-filter-wrap" id="archiveDateFilterWrap">
+            <button type="button" class="store-filter-trigger archive-date-trigger${isDateFilterActive() ? " has-filter" : ""}" id="archiveDateFilterTrigger" aria-haspopup="dialog" aria-expanded="false">
+              <span class="archive-date-trigger-content">
+                <span class="archive-date-trigger-ico" aria-hidden="true">${CALENDAR_ICON_SVG}</span>
+                <span id="archiveDateFilterSummary">${esc(getDateFilterLabel(true))}</span>
+              </span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:16px;height:16px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="store-filter-menu archive-date-filter-menu" id="archiveDateFilterMenu" role="dialog" aria-label="Filtra spese per data" hidden>
+              <div class="archive-date-modes" role="tablist" aria-label="Tipo di filtro data">
+                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "all" ? " active" : ""}" data-date-mode="all" role="tab" aria-selected="${dateFilter.mode === "all" ? "true" : "false"}">Tutte</button>
+                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "range" ? " active" : ""}" data-date-mode="range" role="tab" aria-selected="${dateFilter.mode === "range" ? "true" : "false"}">Intervallo</button>
+                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "month" ? " active" : ""}" data-date-mode="month" role="tab" aria-selected="${dateFilter.mode === "month" ? "true" : "false"}">Mese</button>
+                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "day" ? " active" : ""}" data-date-mode="day" role="tab" aria-selected="${dateFilter.mode === "day" ? "true" : "false"}">Giorno</button>
               </div>
-            </div>
-            <div class="archive-date-panel" id="archiveDatePanelRange"${dateFilter.mode === "range" ? "" : " hidden"}>
-              <div class="archive-date-field-row">
-                <label for="archiveDateFrom">Dal</label>
-                <input id="archiveDateFrom" type="date" class="archive-date-input" value="${esc(dateFilter.from)}" aria-label="Data inizio intervallo">
+              <div class="archive-date-panel" id="archiveDatePanelMonth"${dateFilter.mode === "month" ? "" : " hidden"}>
+                <div class="archive-date-month-grid">
+                  <select id="archiveDateMonthSelect" class="archive-date-select" aria-label="Mese">${monthOptsHtml}</select>
+                  <select id="archiveDateYearSelect" class="archive-date-select" aria-label="Anno">${yearOptsHtml}</select>
+                </div>
               </div>
-              <div class="archive-date-field-row">
-                <label for="archiveDateTo">Al</label>
-                <input id="archiveDateTo" type="date" class="archive-date-input" value="${esc(dateFilter.to)}" aria-label="Data fine intervallo">
+              <div class="archive-date-panel" id="archiveDatePanelRange"${dateFilter.mode === "range" ? "" : " hidden"}>
+                <div class="archive-date-field-row">
+                  <label for="archiveDateFrom">Dal</label>
+                  <input id="archiveDateFrom" type="date" class="archive-date-input" value="${esc(dateFilter.from)}" aria-label="Data inizio intervallo">
+                </div>
+                <div class="archive-date-field-row">
+                  <label for="archiveDateTo">Al</label>
+                  <input id="archiveDateTo" type="date" class="archive-date-input" value="${esc(dateFilter.to)}" aria-label="Data fine intervallo">
+                </div>
               </div>
-            </div>
-            <div class="archive-date-panel" id="archiveDatePanelDay"${dateFilter.mode === "day" ? "" : " hidden"}>
-              <div class="archive-date-field-row">
-                <label for="archiveDateDay">Data</label>
-                <input id="archiveDateDay" type="date" class="archive-date-input" value="${esc(dateFilter.day)}" aria-label="Data precisa">
+              <div class="archive-date-panel" id="archiveDatePanelDay"${dateFilter.mode === "day" ? "" : " hidden"}>
+                <div class="archive-date-field-row">
+                  <label for="archiveDateDay">Data</label>
+                  <input id="archiveDateDay" type="date" class="archive-date-input" value="${esc(dateFilter.day)}" aria-label="Data precisa">
+                </div>
               </div>
-            </div>
-            <div class="archive-date-menu-foot" id="archiveDateMenuFoot"${dateFilter.mode === "all" ? " hidden" : ""}>
-              <button type="button" class="archive-date-reset-btn" id="archiveDateResetBtn">Tutte le date</button>
-              <button type="button" class="btn btn-primary btn-small archive-date-apply-btn" id="archiveDateApplyBtn">Applica</button>
+              <div class="archive-date-menu-foot" id="archiveDateMenuFoot"${dateFilter.mode === "all" ? " hidden" : ""}>
+                <button type="button" class="btn btn-primary btn-small archive-date-apply-btn" id="archiveDateApplyBtn">Applica</button>
+              </div>
             </div>
           </div>
+          <button type="button" class="filter-clear archive-filter-clear dim" id="resetArchiveFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri" disabled>${SVG_FILTER_CLEAR}</button>
         </div>
-        <input id="archiveSearchInput" type="search" class="search-input" maxlength="25" placeholder="Cerca articolo\u2026" value="${esc((searchQuery || "").slice(0, 25))}" autocomplete="off" aria-label="Cerca articolo nell'archivio spese">
+        <div class="archive-search-combo${searchQuery.trim() ? " has-query" : ""}" id="archiveSearchCombo">
+          <div class="store-filter-wrap archive-search-scope-wrap" id="archiveSearchScopeWrap">
+            <button type="button" class="store-filter-trigger archive-search-scope-btn" id="archiveSearchScopeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Cerca per: ${esc(curSearchMeta.label)}" title="Scegli il campo di ricerca">
+              <span id="archiveSearchScopeLabel">${esc(curSearchMeta.shortLabel)}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="store-filter-menu archive-search-scope-menu" id="archiveSearchScopeMenu" role="listbox" aria-label="Cerca per" hidden>
+              ${searchScopeOptsHtml}
+            </div>
+          </div>
+          <input id="archiveSearchInput" type="search" class="search-input archive-combo-input" maxlength="${curSearchMeta.maxLength}" placeholder="${esc(curSearchMeta.placeholder)}" value="${esc(searchQuery)}" autocomplete="off" aria-label="${esc(curSearchMeta.ariaLabel)}">
+        </div>
       </div>
     </div>` : "";
 
@@ -1020,12 +1072,16 @@ export async function openArchiveWindow(opts = {}) {
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche ricercare un articolo all'interno delle spese archiviate, per ricostruirne lo storico del prezzo.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche cercare per nome spesa, nome articolo o marca (per ricostruire lo storico dei prezzi).</div>`);
   }
 
   const container = $("#archivedReceiptsContainer");
   const countBadge = $("#archiveCountBadge");
   const searchInp = $("#archiveSearchInput");
+  const searchCombo = $("#archiveSearchCombo");
+  const searchScopeBtn = $("#archiveSearchScopeBtn");
+  const searchScopeLabel = $("#archiveSearchScopeLabel");
+  const searchScopeMenu = $("#archiveSearchScopeMenu");
   const delAllBtn = $("#delAllArchivedBtn");
   const resetFiltersBtn = $("#resetArchiveFilters");
   const dateTrigger = $("#archiveDateFilterTrigger");
@@ -1046,7 +1102,7 @@ export async function openArchiveWindow(opts = {}) {
   const syncDateFilterUI = () => {
     const active = isDateFilterActive();
     if (dateTrigger) dateTrigger.classList.toggle("has-filter", active);
-    if (dateSummary) dateSummary.textContent = getDateFilterLabel();
+    if (dateSummary) dateSummary.textContent = getDateFilterLabel(true);
     if (dateMenu) {
       dateMenu.querySelectorAll("[data-date-mode]").forEach((btn) => {
         const sel = btn.dataset.dateMode === dateFilter.mode;
@@ -1069,6 +1125,7 @@ export async function openArchiveWindow(opts = {}) {
   };
 
   const syncResetBtn = () => {
+    if (searchCombo) searchCombo.classList.toggle("has-query", !!searchQuery.trim());
     if (!resetFiltersBtn) return;
     const hasAny = selectedStoreKey !== "all" || isDateFilterActive() || !!searchQuery.trim();
     resetFiltersBtn.disabled = !hasAny;
@@ -1095,21 +1152,26 @@ export async function openArchiveWindow(opts = {}) {
       delAllBtn.setAttribute("aria-label", delLabel);
     }
 
-    if (q) {
+    if (q && searchField !== "receipt") {
       const tokens = q.split(" ").filter(Boolean);
       const matchedItems = [];
       for (const r of filtered) {
         for (const it of (r.items || [])) {
           const resolved = resolveReceiptItem(it, pMap, cMap);
-          const itemHay = searchNorm(`${resolved.resolvedTitle || ""} ${resolved.resolvedBrand || ""}`);
-          if (tokens.every((tok) => itemHay.includes(tok))) {
+          const itemHay = searchField === "brand"
+            ? searchNorm(resolved.resolvedBrand || "")
+            : searchNorm(resolved.resolvedTitle || "");
+          if (itemHay && tokens.every((tok) => itemHay.includes(tok))) {
             matchedItems.push({ receipt: r, item: resolved });
           }
         }
       }
       if (countBadge) countBadge.textContent = String(matchedItems.length);
       if (!matchedItems.length) {
-        container.innerHTML = `<div class="empty">Nessun articolo trovato nell'archivio spese.</div>`;
+        const emptyMsg = searchField === "brand"
+          ? "Nessun articolo di questa marca trovato nell'archivio spese."
+          : "Nessun articolo trovato nell'archivio spese.";
+        container.innerHTML = `<div class="empty">${emptyMsg}</div>`;
         return;
       }
       container.innerHTML = matchedItems.map(({ receipt: r, item: it }) => {
@@ -1135,14 +1197,25 @@ export async function openArchiveWindow(opts = {}) {
       return;
     }
 
-    if (countBadge) countBadge.textContent = String(filtered.length);
+    const visibleReceipts = (q && searchField === "receipt")
+      ? filtered.filter((r) => {
+          const tokens = q.split(" ").filter(Boolean);
+          const noteHay = searchNorm(r.note || "");
+          return noteHay && tokens.every((tok) => noteHay.includes(tok));
+        })
+      : filtered;
 
-    if (!filtered.length) {
-      container.innerHTML = `<div class="empty">${receipts.length ? "Nessuno scontrino corrisponde ai filtri." : "Nessuna spesa archiviata.<br>Tocca \u201CArchivia spesa corrente\u201D per salvare il tuo primo scontrino."}</div>`;
+    if (countBadge) countBadge.textContent = String(visibleReceipts.length);
+
+    if (!visibleReceipts.length) {
+      const emptyReceiptMsg = !receipts.length
+        ? "Nessuna spesa archiviata.<br>Tocca \u201CArchivia spesa corrente\u201D per salvare il tuo primo scontrino."
+        : (q && searchField === "receipt" ? "Nessuna spesa trovata con questo nome." : "Nessuno scontrino corrisponde ai filtri.");
+      container.innerHTML = `<div class="empty">${emptyReceiptMsg}</div>`;
       return;
     }
 
-    container.innerHTML = filtered.map((r) => {
+    container.innerHTML = visibleReceipts.map((r) => {
       const t = computeReceiptTotals(r);
       const dt = fmtIsoDate(r.purchaseDate, r.archivedAt);
       const noteText = r.note || "";
@@ -1199,6 +1272,8 @@ export async function openArchiveWindow(opts = {}) {
 
   if (receipts.length) {
     wireSingleFilter("archiveStoreFilter", {
+      searchMaxLength: 20,
+      searchUppercase: true,
       onSelect: (val) => {
         selectedStoreKey = val || "all";
         updateSingleFilterUI("archiveStoreFilter", { allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey });
@@ -1289,12 +1364,6 @@ export async function openArchiveWindow(opts = {}) {
     dateDayInp?.addEventListener("change", syncDayFromInput);
     dateDayInp?.addEventListener("input", syncDayFromInput);
 
-    $("#archiveDateResetBtn")?.addEventListener("click", () => {
-      dateFilter = { mode: "all", month: "", from: "", to: "", day: "" };
-      syncDateFilterUI();
-      paintReceipts();
-      closeDateMenu();
-    });
     $("#archiveDateApplyBtn")?.addEventListener("click", () => {
       closeDateMenu();
     });
@@ -1317,13 +1386,69 @@ export async function openArchiveWindow(opts = {}) {
     }
   });
 
+  const closeSearchScopeMenu = () => {
+    if (searchScopeMenu) searchScopeMenu.hidden = true;
+    searchScopeBtn?.setAttribute("aria-expanded", "false");
+  };
+
+  const applySearchField = (nextField, { focusInput = false } = {}) => {
+    const meta = SEARCH_FIELDS[nextField] || SEARCH_FIELDS.receipt;
+    searchField = meta.key;
+    if (searchScopeLabel) searchScopeLabel.textContent = meta.shortLabel;
+    searchScopeBtn?.setAttribute("aria-label", `Cerca per: ${meta.label}`);
+    searchScopeMenu?.querySelectorAll("[data-search-field]").forEach((opt) => {
+      const sel = opt.dataset.searchField === searchField;
+      opt.classList.toggle("is-selected", sel);
+      opt.setAttribute("aria-selected", String(sel));
+    });
+    if (searchInp) {
+      searchInp.maxLength = meta.maxLength;
+      searchInp.placeholder = meta.placeholder;
+      searchInp.setAttribute("aria-label", meta.ariaLabel);
+      if (searchInp.value.length > meta.maxLength) {
+        searchInp.value = searchInp.value.slice(0, meta.maxLength);
+        searchQuery = searchInp.value;
+      }
+    }
+    closeSearchScopeMenu();
+    paintReceipts();
+    if (focusInput) searchInp?.focus();
+  };
+
+  if (searchScopeBtn && searchScopeMenu) {
+    searchScopeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = searchScopeMenu.hidden;
+      document.querySelectorAll(".custom-dropdown-menu").forEach((m) => {
+        m.hidden = true;
+        m.classList.remove("drop-up");
+      });
+      document.querySelectorAll(".custom-dropdown-trigger").forEach((t) => t.setAttribute("aria-expanded", "false"));
+      document.querySelectorAll(".store-filter-menu").forEach((m) => {
+        if (m !== searchScopeMenu) m.hidden = true;
+      });
+      document.querySelectorAll(".store-filter-trigger").forEach((t) => {
+        if (t !== searchScopeBtn) t.setAttribute("aria-expanded", "false");
+      });
+      searchScopeMenu.hidden = !willOpen;
+      searchScopeBtn.setAttribute("aria-expanded", String(willOpen));
+    });
+    searchScopeMenu.addEventListener("click", (e) => e.stopPropagation());
+    searchScopeMenu.querySelectorAll("[data-search-field]").forEach((opt) => {
+      opt.addEventListener("click", () => {
+        applySearchField(opt.dataset.searchField, { focusInput: true });
+      });
+    });
+  }
+
   if (searchInp) {
     attachSearchClear(searchInp, () => {
       searchQuery = "";
       paintReceipts();
     });
     searchInp.addEventListener("input", () => {
-      if (searchInp.value.length > 25) searchInp.value = searchInp.value.slice(0, 25);
+      const maxLen = (SEARCH_FIELDS[searchField] || SEARCH_FIELDS.receipt).maxLength;
+      if (searchInp.value.length > maxLen) searchInp.value = searchInp.value.slice(0, maxLen);
       searchQuery = searchInp.value;
       paintReceipts();
     });
@@ -1367,6 +1492,7 @@ export async function openArchiveWindow(opts = {}) {
     await txDone(tx);
     await openArchiveWindow({
       storeFilter: "all",
+      searchField,
       searchQuery: isAll ? "" : searchQuery,
       dateFilter: { mode: "all", month: "", from: "", to: "", day: "" }
     });
