@@ -188,7 +188,10 @@ export async function openSavedListsWindow(mode) {
     if (!yes) return false;
     const wasCurrent = l.id === curId;
     await delOne("savedLists", l.id);
-    if (wasCurrent) await setCurrentSavedList(null);
+    if (wasCurrent) {
+      await setCurrentSavedList(null);
+      await replaceItems([]);
+    }
     await openSavedListsWindow(mode);
     if (state.page === "list") await renderList();
     showToast("Lista eliminata");
@@ -197,7 +200,12 @@ export async function openSavedListsWindow(mode) {
     if (!lists.length) return;
     const yes = await confirmDialog("Elimina tutte le liste", "Tutte le liste salvate verranno rimosse definitivamente. Procedere comunque?", "Elimina tutte", { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openSavedListsWindow(mode) });
     if (yes) {
+      const hadCurrent = !!curId;
       for (const l of lists) await delOne("savedLists", l.id);
+      if (hadCurrent) {
+        await setCurrentSavedList(null);
+        await replaceItems([]);
+      }
       await openSavedListsWindow(mode);
       await renderList();
       showToast("Liste eliminate");

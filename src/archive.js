@@ -1080,7 +1080,7 @@ export async function openArchiveWindow(opts = {}) {
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche cercare per nome spesa, nome reparto, nome marca o nome articolo (per ricostruire lo storico dei prezzi).</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche filtrare l'elenco per nome Spesa, Reparto, Marca o Articolo.</div>`);
   }
 
   const container = $("#archivedReceiptsContainer");
@@ -1405,6 +1405,7 @@ export async function openArchiveWindow(opts = {}) {
 
   const applySearchField = (nextField, { focusInput = false } = {}) => {
     const meta = SEARCH_FIELDS[nextField] || SEARCH_FIELDS.receipt;
+    const fieldChanged = meta.key !== searchField;
     searchField = meta.key;
     if (searchScopeLabel) searchScopeLabel.textContent = meta.shortLabel;
     searchScopeBtn?.setAttribute("aria-label", `Cerca per: ${meta.label}`);
@@ -1413,11 +1414,15 @@ export async function openArchiveWindow(opts = {}) {
       opt.classList.toggle("is-selected", sel);
       opt.setAttribute("aria-selected", String(sel));
     });
+    if (fieldChanged) searchQuery = "";
     if (searchInp) {
       searchInp.maxLength = meta.maxLength;
       searchInp.placeholder = meta.placeholder;
       searchInp.setAttribute("aria-label", meta.ariaLabel);
-      if (searchInp.value.length > meta.maxLength) {
+      if (fieldChanged && searchInp.value !== "") {
+        searchInp.value = "";
+        searchInp.dispatchEvent(new Event("input"));
+      } else if (searchInp.value.length > meta.maxLength) {
         searchInp.value = searchInp.value.slice(0, meta.maxLength);
         searchQuery = searchInp.value;
       }
