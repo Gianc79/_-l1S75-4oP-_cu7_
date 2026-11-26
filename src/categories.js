@@ -5,6 +5,7 @@ import { $, displayUnit, esc, filterBySearch, norm, now, productDisplayParts, pr
 import { allCategoriesSorted, allProductsSorted, categoryMap, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, decorateInput, forceUppercaseInput, infoPop, modal, releaseModalKeyboard, showToast, showUndoToast, swipeWrap, updateNav } from "./ui.js";
 import { openProductForm } from "./products.js";
+import { countArchivedReceiptsForCategory, deleteStaleTombstonesInTx, findOrphanCategoryMatch, prepareFrozenReceiptsForCategoryDelete, promptArchiveRelink, unifyOrphanCategoryIdsInTx } from "./archive.js";
 
 export async function renderCategories() {
   state.page = "categories";
@@ -29,16 +30,30 @@ export async function renderCategories() {
     bindSwipeDelete(list, "[data-cat-delete]", async (row) => {
       const id = row.dataset.catDelete, c = await getOne("categories", id);
       if (!c) return false;
-      const prods = (await getAll("products")).filter((x) => x.categoryId === id);
-      const msg = `Il reparto \u201C${esc(c.name)}\u201D verr\xE0 rimosso definitivamente.<br>${prods.length ? "Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D.<br>Procedere comunque?" : "Procedere comunque?"}`;
+      const [allProds, archivedCount] = await Promise.all([getAll("products"), countArchivedReceiptsForCategory(id)]);
+      const prods = allProds.filter((x) => x.categoryId === id);
+      const msgLines = [`Il reparto \u201C${esc(c.name)}\u201D verr\xE0 rimosso definitivamente.`];
+      if (prods.length) msgLines.push("Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D.");
+      if (archivedCount > 0) msgLines.push(`Presente in <strong>${archivedCount} ${archivedCount === 1 ? "spesa archiviata" : "spese archiviate"}</strong> (gli articoli attivi risulteranno \u201CSenza reparto\u201D).`);
+      msgLines.push("Procedere comunque?");
+      const msg = msgLines.join("<br>");
       const yes = await confirmDialog("Elimina reparto", msg, "Elimina", { closeButton: false, backdropClose: false });
       if (!yes) return false;
-      const routes = (await getAll("storeCategoryRoutes")).filter((r) => r.categoryId === id);
+      const [routes, allCats, receipts] = await Promise.all([
+        getAll("storeCategoryRoutes"),
+        getAll("categories"),
+        getAll("archivedReceipts")
+      ]);
+      const pMap = Object.fromEntries(allProds.map((x) => [x.id, x]));
+      const cMap = Object.fromEntries(allCats.map((x) => [x.id, x]));
+      const frozenReceipts = prepareFrozenReceiptsForCategoryDelete(new Set([id]), pMap, cMap, receipts);
+      const delRoutes = routes.filter((r) => r.categoryId === id);
       const tombId = uuid();
-      const tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "tombstones"], "readwrite");
+      const tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "archivedReceipts", "tombstones"], "readwrite");
       tx.objectStore("categories").delete(id);
       for (const x of prods) tx.objectStore("products").put({ ...x, categoryId: null, updatedAt: now() });
-      for (const r of routes) tx.objectStore("storeCategoryRoutes").delete(r.id);
+      for (const r of delRoutes) tx.objectStore("storeCategoryRoutes").delete(r.id);
+      for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
       tx.objectStore("tombstones").put({ id: tombId, entityType: "category", entityId: id, deletedAt: now(), revision: Date.now() });
       await txDone(tx);
       await renderCategories();
@@ -58,19 +73,58 @@ export async function renderCategories() {
     }
     d.onclick = async () => {
       if (!await confirmDialog("Elimina tutti i reparti", "Tutti i reparti verranno rimossi definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D. Procedere comunque?", "Elimina tutti", { backdropClose: false })) return;
-      const prods = await getAll("products"), routes = await getAll("storeCategoryRoutes"), tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "tombstones"], "readwrite");
+      const [prods, routes, receipts] = await Promise.all([getAll("products"), getAll("storeCategoryRoutes"), getAll("archivedReceipts")]);
+      const pMap = Object.fromEntries(prods.map((x) => [x.id, x]));
+      const cMap = Object.fromEntries(cats.map((x) => [x.id, x]));
+      const catIds = new Set(cats.map((c) => c.id));
+      const frozenReceipts = prepareFrozenReceiptsForCategoryDelete(catIds, pMap, cMap, receipts);
+      const tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "archivedReceipts", "tombstones"], "readwrite");
       for (const c of cats) {
         tx.objectStore("categories").delete(c.id);
         tx.objectStore("tombstones").put({ id: uuid(), entityType: "category", entityId: c.id, deletedAt: now(), revision: Date.now() });
       }
       for (const x of prods) if (x.categoryId) tx.objectStore("products").put({ ...x, categoryId: null, updatedAt: now() });
       for (const r of routes) tx.objectStore("storeCategoryRoutes").delete(r.id);
+      for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
       await txDone(tx);
       state.catsSearchQuery = "";
       await renderCategories();
       showToast("Reparti eliminati");
     };
   }
+}
+
+export async function createCategoryRecord(name) {
+  const [existingCats, receipts] = await Promise.all([getAll("categories"), getAll("archivedReceipts")]);
+  const orphanMatch = findOrphanCategoryMatch(name, existingCats, receipts);
+  let relinked = false;
+  let catId = uuid();
+  if (orphanMatch) {
+    relinked = await promptArchiveRelink({
+      entityLabel: "Il reparto",
+      entityName: name,
+      receiptCount: orphanMatch.receiptCount
+    });
+    if (relinked) catId = orphanMatch.primaryId;
+  }
+  const c = { id: catId, name, nameNormalized: norm(name), createdAt: now(), updatedAt: now() };
+  if (relinked) {
+    const [allProds, allTombstones] = await Promise.all([getAll("products"), getAll("tombstones")]);
+    const prodIdSet = new Set(orphanMatch.productIds);
+    const tx = state.db.transaction(["categories", "products", "archivedReceipts", "tombstones"], "readwrite");
+    tx.objectStore("categories").put(c);
+    deleteStaleTombstonesInTx(tx, "category", [catId], allTombstones);
+    unifyOrphanCategoryIdsInTx(tx, catId, orphanMatch.orphanIds, receipts);
+    for (const pr of allProds) {
+      if (prodIdSet.has(pr.id) && !pr.categoryId) {
+        tx.objectStore("products").put({ ...pr, categoryId: catId, updatedAt: now() });
+      }
+    }
+    await txDone(tx);
+  } else {
+    await putOne("categories", c);
+  }
+  return { category: c, relinked, receiptCount: relinked ? orphanMatch.receiptCount : 0 };
 }
 
 export function openNewCategoryWindow(onClose, opts = {}) {
@@ -104,12 +158,12 @@ export function openNewCategoryWindow(onClose, opts = {}) {
       input().focus();
       return;
     }
-    await putOne("categories", { id: uuid(), name, nameNormalized: norm(name), createdAt: now(), updatedAt: now() });
+    const { relinked } = await createCategoryRecord(name);
     input().value = "";
     if (dec) dec.setInitial("");
     input().classList.remove("caret-hidden");
     input().focus();
-    setStatus("Nuovo reparto aggiunto.", "info");
+    setStatus(relinked ? "Reparto aggiunto e ricollegato allo storico." : "Nuovo reparto aggiunto.", "info");
   };
   modal("Nuovo reparto", '<div class="field" style="margin-bottom:28px"><div class="label-row"><label for="categoryName">Nome <span class="label-hint">(max 25 caratteri)</span></label><span class="field-status" id="catNameStatus" aria-live="polite"></span></div><input id="categoryName" type="text" maxlength="25" placeholder="Es. SALUMI" autocomplete="off" autocapitalize="characters"></div>', [
     { label: "Chiudi", class: "btn-plain", action: () => {

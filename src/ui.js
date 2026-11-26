@@ -1206,7 +1206,8 @@ export async function confirmDialog(title, message, confirmText = "Elimina", opt
     if (opts.overlay) {
       const root = $("#modalRoot");
       const closeButton = opts.closeButton ? `<button class="modal-close" type="button" aria-label="Chiudi" title="Chiudi">\xD7</button>` : "";
-      const btns = opts.singleButton ? [{ label: confirmText, class: opts.confirmClass || "btn-primary", kind: "confirm" }] : (opts.cancelFirst ? [{ label: "Annulla", class: "btn-plain", kind: "cancel" }, { label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }] : [{ label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }, { label: "Annulla", class: "btn-plain", kind: "cancel" }]);
+      const cancelLabel = opts.cancelLabel || "Annulla";
+      const btns = opts.singleButton ? [{ label: confirmText, class: opts.confirmClass || "btn-primary", kind: "confirm" }] : (opts.cancelFirst ? [{ label: cancelLabel, class: "btn-plain", kind: "cancel" }, { label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }] : [{ label: confirmText, class: opts.confirmClass || "btn-danger", kind: "confirm" }, { label: cancelLabel, class: "btn-plain", kind: "cancel" }]);
       const overlay = document.createElement("div");
       overlay.className = "modal-backdrop modal-overlay modal-opening";
       overlay.id = "confirmOverlayBackdrop";
@@ -1256,7 +1257,7 @@ export async function confirmDialog(title, message, confirmText = "Elimina", opt
         resolve(true);
       }
     } };
-    const cancelBtn = { label: "Annulla", class: "btn-plain", action: () => {
+    const cancelBtn = { label: opts.cancelLabel || "Annulla", class: "btn-plain", action: () => {
       settleFalse();
       closeModal();
     } };

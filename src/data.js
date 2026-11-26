@@ -2,7 +2,7 @@
 
 export const CART_CELEBRATION_DATA_URI = "./CarrelloSpesa.webp";
 export const APP_NAME = "SpesaSuMisura";
-export const APP_VERSION = "1.82";
+export const APP_VERSION = "1.83";
 export const MAX_SAVED_LISTS = 10;
 export const DB_NAME = "spesaSuMisuraDB";
 export const DB_VERSION = 3;

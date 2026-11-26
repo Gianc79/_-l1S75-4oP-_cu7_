@@ -1,7 +1,7 @@
-// Archivio spese (scontrini immutabili), aggiunte/detrazioni cassa e riepilogo risparmio
+// Archivio spese (dati economici immutabili, anagrafica e percorso dinamici), aggiunte/detrazioni cassa e riepilogo risparmio
 import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
-import { $, assignUnit, displayUnit, esc, eurosFromInput, extractProductFields, fmtQtyUnit, money, moneyPerUnit, norm, now, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
+import { $, assignUnit, displayUnit, esc, eurosFromInput, extractProductFields, fmtQtyUnit, formatProductNetParts, formatTitleWithNetHtml, isConfezionePackaging, isPiecePackUnit, money, moneyPerUnit, norm, now, parsePackPieces, parseQty, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
 import { currentSavedListId } from "./history.js";
@@ -44,14 +44,474 @@ function fmtIsoDate(isoDate, fallbackIsoTs) {
   return dt.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function receiptStoreChip(receipt, extraClass = "") {
-  if (!receipt.storeId && (!receipt.storeNameSnapshot || receipt.storeNameSnapshot === "Senza supermercato")) {
+function normalizeSnapshotPackUnit(u) {
+  const raw = String(u || "").trim().toLowerCase();
+  if (raw === "l") return "lt";
+  if (raw === "pz.") return "pz";
+  return raw || "pz";
+}
+
+export function extractSnapshotParts(it) {
+  if (!it) {
+    return { itemName: "Articolo", packaging: "confezione", packUnit: "pz", packQty: null, packPieces: null, netPart: "" };
+  }
+  if (it.itemNameSnapshot !== undefined) {
+    const itemName = String(it.itemNameSnapshot || "").trim() || "Articolo";
+    const packaging = it.packagingSnapshot === "sfuso" ? "sfuso" : "confezione";
+    const packUnit = normalizeSnapshotPackUnit(it.packUnitSnapshot || it.unitSnapshot || "pz");
+    const packQty = packaging === "sfuso"
+      ? 1
+      : (Number.isFinite(Number(it.packQtySnapshot)) && Number(it.packQtySnapshot) > 0 ? Math.round(Number(it.packQtySnapshot) * 1e3) / 1e3 : null);
+    const rawPcs = packaging === "confezione" && !isPiecePackUnit(packUnit) ? parsePackPieces(it.packPiecesSnapshot) : null;
+    const packPieces = Number.isInteger(rawPcs) && rawPcs > 1 && rawPcs <= 1000 ? rawPcs : null;
+    const { netPart } = formatProductNetParts(packaging === "sfuso" ? 1 : packQty, packUnit, true, packaging, null);
+    return { itemName, packaging, packUnit, packQty, packPieces, netPart };
+  }
+  const rawTitle = String(it.productNameSnapshot || "").trim();
+  const dotParts = rawTitle.split(/\s*\u00B7\s*/);
+  if (dotParts.length >= 2) {
+    const netPart = dotParts[dotParts.length - 1].trim();
+    const leftRaw = dotParts.slice(0, -1).join(" \u00B7 ").trim();
+    let itemName = leftRaw || "Articolo";
+    let packPieces = null;
+    const pcsMatch = /^(.*?)\s+(\d+)pz$/i.exec(leftRaw);
+    if (pcsMatch && pcsMatch[1].trim()) {
+      const n = Number(pcsMatch[2]);
+      if (Number.isInteger(n) && n > 1 && n <= 1000) {
+        itemName = pcsMatch[1].trim();
+        packPieces = n;
+      }
+    }
+    const sfusoMatch = /^@(kg|g|lt|l|cl|ml|cm|m|pz\.?)$/i.exec(netPart);
+    if (sfusoMatch) {
+      const packUnit = normalizeSnapshotPackUnit(sfusoMatch[1]);
+      return { itemName, packaging: "sfuso", packUnit, packQty: 1, packPieces: null, netPart: `@${packUnit}` };
+    }
+    const confMatch = /^(\d+(?:[.,]\d{1,3})?)(kg|g|lt|l|cl|ml|cm|m|pz\.?)$/i.exec(netPart);
+    if (confMatch) {
+      const packQty = parseQty(confMatch[1]);
+      const packUnit = normalizeSnapshotPackUnit(confMatch[2]);
+      const validQty = Number.isFinite(packQty) && packQty > 0 ? Math.round(packQty * 1e3) / 1e3 : null;
+      return {
+        itemName,
+        packaging: "confezione",
+        packUnit,
+        packQty: validQty,
+        packPieces: isPiecePackUnit(packUnit) ? null : packPieces,
+        netPart
+      };
+    }
+    const fallbackPackaging = it.packagingSnapshot === "sfuso" ? "sfuso" : (it.packagingSnapshot === "confezione" ? "confezione" : (isConfezionePackaging(null, it.unitSnapshot) ? "confezione" : "sfuso"));
+    const fallbackUnit = normalizeSnapshotPackUnit(it.unitSnapshot || "pz");
+    return { itemName, packaging: fallbackPackaging, packUnit: fallbackUnit, packQty: fallbackPackaging === "sfuso" ? 1 : null, packPieces, netPart };
+  }
+  const fallbackPackaging = it.packagingSnapshot === "sfuso" ? "sfuso" : (it.packagingSnapshot === "confezione" ? "confezione" : (isConfezionePackaging(null, it.unitSnapshot) ? "confezione" : "sfuso"));
+  const fallbackUnit = normalizeSnapshotPackUnit(it.unitSnapshot || "pz");
+  return {
+    itemName: rawTitle || "Articolo",
+    packaging: fallbackPackaging,
+    packUnit: fallbackUnit,
+    packQty: fallbackPackaging === "sfuso" ? 1 : null,
+    packPieces: null,
+    netPart: ""
+  };
+}
+
+export function resolveReceiptStore(receipt, sMap = null) {
+  const liveStore = receipt?.storeId && sMap ? sMap[receipt.storeId] : null;
+  if (liveStore) {
+    return {
+      storeId: liveStore.id,
+      name: liveStore.name,
+      bgColor: liveStore.bgColor || null,
+      textColor: liveStore.textColor || null,
+      isNone: false,
+      isLive: true
+    };
+  }
+  const snapName = receipt?.storeNameSnapshot || "Senza supermercato";
+  const isNone = !receipt?.storeId && snapName === "Senza supermercato";
+  return {
+    storeId: receipt?.storeId || null,
+    name: snapName,
+    bgColor: receipt?.storeBgColorSnapshot || null,
+    textColor: receipt?.storeTextColorSnapshot || null,
+    isNone,
+    isLive: false
+  };
+}
+
+export function resolveReceiptItem(it, pMap = null, cMap = null) {
+  const snap = extractSnapshotParts(it);
+  const liveProd = it?.productId && pMap ? pMap[it.productId] : null;
+  if (liveProd) {
+    const lf = extractProductFields(liveProd);
+    const itemName = (lf.itemName || liveProd.name || snap.itemName || "Articolo").trim();
+    const brand = String(lf.brand || "").trim();
+    const isSfuso = snap.packaging === "sfuso";
+    const netPart = snap.netPart;
+    let effectivePackPieces = null;
+    if (!isSfuso && !isPiecePackUnit(snap.packUnit)) {
+      if (lf.packaging === "confezione" && !isPiecePackUnit(lf.packUnit)) {
+        effectivePackPieces = Number.isInteger(lf.packPieces) && lf.packPieces > 1 && lf.packPieces <= 1000 ? lf.packPieces : null;
+      } else {
+        effectivePackPieces = snap.packPieces;
+      }
+    }
+    const piecesPart = effectivePackPieces ? `${effectivePackPieces}pz` : "";
+    const left = [itemName, piecesPart].filter(Boolean).join(" ");
+    const resolvedTitle = (left && netPart)
+      ? `${left} \u00B7 ${netPart}`
+      : (left || netPart || it.productNameSnapshot || "Articolo");
+    const resolvedTitleHtml = (left || netPart)
+      ? formatTitleWithNetHtml(itemName, netPart, isSfuso, piecesPart)
+      : formatReceiptItemNameHtml(it.productNameSnapshot || "Articolo");
+    const liveCat = liveProd.categoryId && cMap ? cMap[liveProd.categoryId] : null;
+    return {
+      ...it,
+      resolvedTitle,
+      resolvedTitleHtml,
+      resolvedItemName: itemName,
+      resolvedBrand: brand,
+      resolvedPackPieces: effectivePackPieces,
+      resolvedCategoryId: liveCat ? liveCat.id : null,
+      resolvedCategoryName: liveCat ? liveCat.name : "Senza reparto",
+      categoryIsNone: !liveCat,
+      isLiveProduct: true
+    };
+  }
+  const title = it?.productNameSnapshot || "Articolo";
+  const brand = String(it?.productBrandSnapshot || "").trim();
+  const liveCat = it?.categoryId && cMap ? cMap[it.categoryId] : null;
+  const resolvedCategoryName = liveCat ? liveCat.name : (it?.categoryNameSnapshot || "Senza reparto");
+  const categoryIsNone = liveCat ? false : (!it?.categoryNameSnapshot || it.categoryNameSnapshot === "Senza reparto");
+  return {
+    ...it,
+    resolvedTitle: title,
+    resolvedTitleHtml: formatReceiptItemNameHtml(title),
+    resolvedItemName: snap.itemName,
+    resolvedBrand: brand,
+    resolvedPackPieces: snap.packPieces,
+    resolvedCategoryId: liveCat ? liveCat.id : (it?.categoryId || null),
+    resolvedCategoryName,
+    categoryIsNone,
+    isLiveProduct: false
+  };
+}
+
+export function sortResolvedReceiptItems(resolvedItems, storeId, sMap, routes = []) {
+  if (!Array.isArray(resolvedItems) || resolvedItems.length <= 1) return resolvedItems || [];
+  const hasLiveStore = !!(storeId && sMap && sMap[storeId]);
+  if (storeId && !hasLiveStore) {
+    return [...resolvedItems];
+  }
+  const routePosition = (sid, catId) => {
+    if (!sid || !catId) return 99999;
+    return routes.find((r) => r.storeId === sid && r.categoryId === catId)?.position ?? 99999;
+  };
+  return [...resolvedItems].sort((a, b) => {
+    if (hasLiveStore) {
+      const d = routePosition(storeId, a.resolvedCategoryId) - routePosition(storeId, b.resolvedCategoryId);
+      if (d) return d;
+    }
+    const ca = a.categoryIsNone ? "" : (a.resolvedCategoryName || "");
+    const cb = b.categoryIsNone ? "" : (b.resolvedCategoryName || "");
+    return ca.localeCompare(cb, "it", { sensitivity: "base" }) ||
+      (a.resolvedTitle || "").localeCompare(b.resolvedTitle || "", "it", { sensitivity: "base" });
+  });
+}
+
+function productOrphanMatchKey({ itemName, brand, packaging, packUnit, packQty, fallbackTitle = "" }) {
+  const pack = packaging === "sfuso" ? "sfuso" : "confezione";
+  const u = normalizeSnapshotPackUnit(packUnit);
+  const q = pack === "sfuso"
+    ? "1"
+    : (Number.isFinite(Number(packQty)) && Number(packQty) > 0 ? String(Math.round(Number(packQty) * 1e3) / 1e3) : "");
+  const nName = norm(itemName);
+  const nBrand = norm(brand);
+  if (!q && fallbackTitle) return `legacy|${norm(fallbackTitle)}|${nBrand}|${pack}|${u}`;
+  return `${nName}|${nBrand}|${pack}|${u}|${q}`;
+}
+
+export async function countArchivedReceiptsForProduct(productId) {
+  if (!productId) return 0;
+  const receipts = await getAll("archivedReceipts");
+  let count = 0;
+  for (const r of receipts) {
+    if ((r.items || []).some((it) => it.productId === productId)) count++;
+  }
+  return count;
+}
+
+export async function countArchivedReceiptsForCategory(categoryId) {
+  if (!categoryId) return 0;
+  const [receipts, products] = await Promise.all([getAll("archivedReceipts"), getAll("products")]);
+  const pMap = Object.fromEntries(products.map((p) => [p.id, p]));
+  let count = 0;
+  for (const r of receipts) {
+    const hit = (r.items || []).some((it) => {
+      const liveProd = it.productId ? pMap[it.productId] : null;
+      const effCatId = liveProd ? (liveProd.categoryId || null) : (it.categoryId || null);
+      return effCatId === categoryId;
+    });
+    if (hit) count++;
+  }
+  return count;
+}
+
+export async function countArchivedReceiptsForStore(storeId) {
+  if (!storeId) return 0;
+  const receipts = await getAll("archivedReceipts");
+  return receipts.filter((r) => r.storeId === storeId).length;
+}
+
+export function prepareFrozenReceiptsForProductDelete(productIdsSet, pMap, cMap, receipts) {
+  if (!productIdsSet || !productIdsSet.size) return [];
+  const modified = [];
+  for (const r of receipts) {
+    let changed = false;
+    const nextItems = (r.items || []).map((it) => {
+      if (!it.productId || !productIdsSet.has(it.productId)) return it;
+      const snap = extractSnapshotParts(it);
+      const res = resolveReceiptItem(it, pMap, cMap);
+      changed = true;
+      return {
+        ...it,
+        productNameSnapshot: res.resolvedTitle,
+        itemNameSnapshot: res.resolvedItemName,
+        productBrandSnapshot: res.resolvedBrand,
+        categoryId: res.resolvedCategoryId,
+        categoryNameSnapshot: res.resolvedCategoryName,
+        packUnitSnapshot: snap.packUnit,
+        packQtySnapshot: snap.packQty,
+        packPiecesSnapshot: res.resolvedPackPieces
+      };
+    });
+    if (changed) modified.push({ ...r, items: nextItems });
+  }
+  return modified;
+}
+
+export function prepareFrozenReceiptsForCategoryDelete(categoryIdsSet, pMap, cMap, receipts) {
+  if (!categoryIdsSet || !categoryIdsSet.size) return [];
+  const modified = [];
+  for (const r of receipts) {
+    let changed = false;
+    const nextItems = (r.items || []).map((it) => {
+      const liveProd = it.productId ? pMap[it.productId] : null;
+      const effCatId = liveProd ? (liveProd.categoryId || null) : (it.categoryId || null);
+      if (effCatId && categoryIdsSet.has(effCatId)) {
+        const catName = cMap[effCatId]?.name || it.categoryNameSnapshot || "Senza reparto";
+        if (it.categoryId !== effCatId || it.categoryNameSnapshot !== catName) {
+          changed = true;
+          return { ...it, categoryId: effCatId, categoryNameSnapshot: catName };
+        }
+      } else if (liveProd && it.categoryId && categoryIdsSet.has(it.categoryId)) {
+        const liveCatName = liveProd.categoryId && cMap[liveProd.categoryId] ? cMap[liveProd.categoryId].name : "Senza reparto";
+        changed = true;
+        return { ...it, categoryId: liveProd.categoryId || null, categoryNameSnapshot: liveCatName };
+      }
+      return it;
+    });
+    if (changed) modified.push({ ...r, items: nextItems });
+  }
+  return modified;
+}
+
+export function prepareFrozenReceiptsForStoreDelete(storeIdsSet, pMap, cMap, sMap, routes, receipts) {
+  if (!storeIdsSet || !storeIdsSet.size) return [];
+  const modified = [];
+  for (const r of receipts) {
+    if (!r.storeId || !storeIdsSet.has(r.storeId)) continue;
+    const st = sMap[r.storeId];
+    if (!st) continue;
+    const rawItems = Array.isArray(r.items) ? r.items : [];
+    const indexed = rawItems.map((it) => ({ raw: it, resolved: resolveReceiptItem(it, pMap, cMap) }));
+    const routePosition = (sid, catId) => {
+      if (!sid || !catId) return 99999;
+      return routes.find((rt) => rt.storeId === sid && rt.categoryId === catId)?.position ?? 99999;
+    };
+    indexed.sort((a, b) => {
+      const d = routePosition(st.id, a.resolved.resolvedCategoryId) - routePosition(st.id, b.resolved.resolvedCategoryId);
+      if (d) return d;
+      const ca = a.resolved.categoryIsNone ? "" : (a.resolved.resolvedCategoryName || "");
+      const cb = b.resolved.categoryIsNone ? "" : (b.resolved.resolvedCategoryName || "");
+      return ca.localeCompare(cb, "it", { sensitivity: "base" }) ||
+        (a.resolved.resolvedTitle || "").localeCompare(b.resolved.resolvedTitle || "", "it", { sensitivity: "base" });
+    });
+    const nextItems = indexed.map(({ raw }) => ({ ...raw, storeNameSnapshot: st.name }));
+    modified.push({
+      ...r,
+      storeNameSnapshot: st.name,
+      storeBgColorSnapshot: st.bgColor || null,
+      storeTextColorSnapshot: st.textColor || null,
+      items: nextItems
+    });
+  }
+  return modified;
+}
+
+export function findOrphanProductMatch({ itemName, brand, packaging, packUnit, packQty }, existingProducts, receipts) {
+  const liveIds = new Set(existingProducts.map((p) => p.id));
+  const targetKey = productOrphanMatchKey({ itemName, brand, packaging, packUnit, packQty });
+  const sorted = sortReceiptsDesc(receipts);
+  const matchedReceiptIds = new Set();
+  const orphanIds = [];
+  const seenOrphan = new Set();
+  for (const r of sorted) {
+    for (const it of (r.items || [])) {
+      if (!it.productId || liveIds.has(it.productId)) continue;
+      const snap = extractSnapshotParts(it);
+      const itemKey = productOrphanMatchKey({
+        itemName: snap.itemName,
+        brand: it.productBrandSnapshot || "",
+        packaging: snap.packaging,
+        packUnit: snap.packUnit,
+        packQty: snap.packQty,
+        fallbackTitle: it.productNameSnapshot || ""
+      });
+      if (itemKey === targetKey) {
+        matchedReceiptIds.add(r.id);
+        if (!seenOrphan.has(it.productId)) {
+          seenOrphan.add(it.productId);
+          orphanIds.push(it.productId);
+        }
+      }
+    }
+  }
+  if (!matchedReceiptIds.size || !orphanIds.length) return null;
+  return { primaryId: orphanIds[0], orphanIds, receiptCount: matchedReceiptIds.size };
+}
+
+export function findOrphanCategoryMatch(name, existingCategories, receipts) {
+  const liveIds = new Set(existingCategories.map((c) => c.id));
+  const targetNorm = norm(name);
+  if (!targetNorm) return null;
+  const sorted = sortReceiptsDesc(receipts);
+  const matchedReceiptIds = new Set();
+  const orphanIds = [];
+  const seenOrphan = new Set();
+  const productIds = new Set();
+  for (const r of sorted) {
+    for (const it of (r.items || [])) {
+      if (!it.categoryId || liveIds.has(it.categoryId)) continue;
+      if (norm(it.categoryNameSnapshot) === targetNorm) {
+        matchedReceiptIds.add(r.id);
+        if (!seenOrphan.has(it.categoryId)) {
+          seenOrphan.add(it.categoryId);
+          orphanIds.push(it.categoryId);
+        }
+        if (it.productId) productIds.add(it.productId);
+      }
+    }
+  }
+  if (!matchedReceiptIds.size || !orphanIds.length) return null;
+  return { primaryId: orphanIds[0], orphanIds, receiptCount: matchedReceiptIds.size, productIds: [...productIds] };
+}
+
+export function findOrphanStoreMatch(name, existingStores, receipts) {
+  const liveIds = new Set(existingStores.map((s) => s.id));
+  const targetNorm = norm(name);
+  if (!targetNorm) return null;
+  const sorted = sortReceiptsDesc(receipts);
+  const matchedReceiptIds = new Set();
+  const orphanIds = [];
+  const seenOrphan = new Set();
+  let bgColor = null;
+  let textColor = null;
+  for (const r of sorted) {
+    if (!r.storeId || liveIds.has(r.storeId)) continue;
+    if (norm(r.storeNameSnapshot) === targetNorm) {
+      matchedReceiptIds.add(r.id);
+      if (!seenOrphan.has(r.storeId)) {
+        seenOrphan.add(r.storeId);
+        orphanIds.push(r.storeId);
+      }
+      if (!bgColor && r.storeBgColorSnapshot) bgColor = r.storeBgColorSnapshot;
+      if (!textColor && r.storeTextColorSnapshot) textColor = r.storeTextColorSnapshot;
+    }
+  }
+  if (!matchedReceiptIds.size || !orphanIds.length) return null;
+  return { primaryId: orphanIds[0], orphanIds, receiptCount: matchedReceiptIds.size, bgColor, textColor };
+}
+
+export async function promptArchiveRelink({ entityLabel, entityName, receiptCount }) {
+  const speseTxt = receiptCount === 1 ? "1 spesa archiviata" : `${receiptCount} spese archiviate`;
+  return await confirmDialog(
+    "Ricollega storico spese",
+    `${entityLabel} <strong>${esc(entityName)}</strong> risulta presente in <strong>${speseTxt}</strong> in precedenza.<br><br>Vuoi ricollegarlo allo storico per mantenere unite le statistiche?`,
+    "Ricollega",
+    { overlay: true, cancelFirst: true, confirmClass: "btn-primary", cancelLabel: "Crea separato", themed: true, backdropClose: false }
+  );
+}
+
+export function deleteStaleTombstonesInTx(tx, entityType, entityIds, allTombstones) {
+  if (!entityIds || !entityIds.length) return;
+  const idSet = new Set(entityIds);
+  const os = tx.objectStore("tombstones");
+  for (const t of allTombstones) {
+    if (t.entityType === entityType && idSet.has(t.entityId)) os.delete(t.id);
+  }
+}
+
+export function unifyOrphanProductIdsInTx(tx, primaryId, orphanIds, receipts) {
+  if (!orphanIds || orphanIds.length <= 1) return;
+  const otherSet = new Set(orphanIds.filter((id) => id !== primaryId));
+  if (!otherSet.size) return;
+  const os = tx.objectStore("archivedReceipts");
+  for (const r of receipts) {
+    let changed = false;
+    const nextItems = (r.items || []).map((it) => {
+      if (it.productId && otherSet.has(it.productId)) {
+        changed = true;
+        return { ...it, productId: primaryId };
+      }
+      return it;
+    });
+    if (changed) os.put({ ...r, items: nextItems });
+  }
+}
+
+export function unifyOrphanCategoryIdsInTx(tx, primaryId, orphanIds, receipts) {
+  if (!orphanIds || orphanIds.length <= 1) return;
+  const otherSet = new Set(orphanIds.filter((id) => id !== primaryId));
+  if (!otherSet.size) return;
+  const os = tx.objectStore("archivedReceipts");
+  for (const r of receipts) {
+    let changed = false;
+    const nextItems = (r.items || []).map((it) => {
+      if (it.categoryId && otherSet.has(it.categoryId)) {
+        changed = true;
+        return { ...it, categoryId: primaryId };
+      }
+      return it;
+    });
+    if (changed) os.put({ ...r, items: nextItems });
+  }
+}
+
+export function unifyOrphanStoreIdsInTx(tx, primaryId, orphanIds, receipts) {
+  if (!orphanIds || orphanIds.length <= 1) return;
+  const otherSet = new Set(orphanIds.filter((id) => id !== primaryId));
+  if (!otherSet.size) return;
+  const os = tx.objectStore("archivedReceipts");
+  for (const r of receipts) {
+    if (r.storeId && otherSet.has(r.storeId)) {
+      const nextItems = (r.items || []).map((it) => (it.storeId && otherSet.has(it.storeId) ? { ...it, storeId: primaryId } : it));
+      os.put({ ...r, storeId: primaryId, items: nextItems });
+    }
+  }
+}
+
+function receiptStoreChip(receipt, extraClass = "", sMap = null) {
+  const rs = resolveReceiptStore(receipt, sMap);
+  if (rs.isNone) {
     return '<span class="it">Senza supermercato</span>';
   }
   const virtualStore = {
-    name: receipt.storeNameSnapshot || "Supermercato",
-    bgColor: receipt.storeBgColorSnapshot || null,
-    textColor: receipt.storeTextColorSnapshot || null
+    name: rs.name || "Supermercato",
+    bgColor: rs.bgColor || null,
+    textColor: rs.textColor || null
   };
   return storeChipHtml(virtualStore, { className: extraClass || "archive-store-chip", defaultBold: true });
 }
@@ -200,17 +660,26 @@ function buildReceiptSnapshot({ storeObj, storeId, itemsToArchive, purchaseDate,
   const snapshotItems = orderedItems.map((item) => {
     const p = pMap[item.productId];
     const dp = productDisplayParts(p);
+    const f = extractProductFields(p);
     const cat = p?.categoryId ? cMap[p.categoryId] : null;
     const quickPrice = quickPricesMap.has(item.id) ? quickPricesMap.get(item.id) : null;
     const pricing = resolveActiveItemPricing(item, priceLookup, quickPrice);
+    const packQtySnapshot = f.packaging === "sfuso"
+      ? 1
+      : (Number.isFinite(Number(p?.packQty)) && Number(p.packQty) > 0 ? Math.round(Number(p.packQty) * 1e3) / 1e3 : null);
+    const packPiecesSnapshot = f.packaging === "confezione" && !isPiecePackUnit(f.packUnit) ? f.packPieces : null;
     return {
       productId: item.productId,
       productNameSnapshot: dp.title || p?.name || "Articolo",
+      itemNameSnapshot: f.itemName || dp.title || p?.name || "Articolo",
       productBrandSnapshot: dp.brand || "",
       categoryId: p?.categoryId || null,
       categoryNameSnapshot: cat?.name || "Senza reparto",
       unitSnapshot: p?.unit || "pz",
-      packagingSnapshot: p?.packaging || extractProductFields(p).packaging,
+      packagingSnapshot: p?.packaging || f.packaging,
+      packUnitSnapshot: f.packUnit || p?.unit || "pz",
+      packQtySnapshot,
+      packPiecesSnapshot,
       storeId: storeId || null,
       storeNameSnapshot,
       quantity: Number(item.quantity),
@@ -267,8 +736,12 @@ function formatReceiptItemNameHtml(name) {
 function renderReceiptItemRowHtml(it, opts = {}) {
   const dispUnit = receiptItemDisplayUnit(it);
   const qtyText = `${fmtQtyUnit(it.quantity, it.unitSnapshot)} ${esc(dispUnit)}`;
-  const brandText = (it.productBrandSnapshot || "").trim();
+  const brandText = (it.resolvedBrand !== undefined ? it.resolvedBrand : (it.productBrandSnapshot || "")).trim();
   const brandHtml = brandText ? `<div class="row-brand receipt-item-brand">${esc(brandText)}</div>` : "";
+  const titleHtml = it.resolvedTitleHtml !== undefined ? it.resolvedTitleHtml : formatReceiptItemNameHtml(it.productNameSnapshot);
+  const catText = it.resolvedCategoryName !== undefined ? it.resolvedCategoryName : (it.categoryNameSnapshot || "Senza reparto");
+  const catIsNone = it.categoryIsNone !== undefined ? it.categoryIsNone : (!it.categoryNameSnapshot || it.categoryNameSnapshot === "Senza reparto");
+  const catHtml = catIsNone ? `<span class="it">${esc(catText)}</span>` : esc(catText);
   let unitPriceHtml = "";
   if (it.priceMissing || it.effectiveUnitPriceMinor === null || it.effectiveUnitPriceMinor === undefined) {
     unitPriceHtml = `<span class="receipt-item-nd">prezzo N/D</span>`;
@@ -287,12 +760,12 @@ function renderReceiptItemRowHtml(it, opts = {}) {
   return `<div class="receipt-item-row${extraClass}"${dataAttr}>
     ${opts.topMetaHtml || ""}
     <div class="receipt-item-top">
-      <span class="receipt-item-name">${formatReceiptItemNameHtml(it.productNameSnapshot)}</span>
+      <span class="receipt-item-name">${titleHtml}</span>
     </div>
     ${brandHtml}
     <div class="receipt-item-bottom">
       <div class="receipt-item-meta">
-        <div class="receipt-item-cat">${esc(it.categoryNameSnapshot || "Senza reparto")}</div>
+        <div class="receipt-item-cat">${catHtml}</div>
         <div class="receipt-item-cat">${unitPriceHtml}</div>
       </div>
       <div class="receipt-item-amounts">
@@ -304,39 +777,63 @@ function renderReceiptItemRowHtml(it, opts = {}) {
 }
 
 export async function openArchiveWindow(opts = {}) {
-  const [receiptsRaw, curItems, products] = await Promise.all([
+  const [receiptsRaw, curItems, products, cats, storesList] = await Promise.all([
     getAll("archivedReceipts"),
     activeItems(),
-    getAll("products")
+    getAll("products"),
+    getAll("categories"),
+    getAll("stores")
   ]);
-  const pSet = new Set(products.map((p) => p.id));
-  const validActiveItems = curItems.filter((i) => pSet.has(i.productId));
+  const pMap = Object.fromEntries(products.map((p) => [p.id, p]));
+  const cMap = Object.fromEntries(cats.map((c) => [c.id, c]));
+  const sMap = Object.fromEntries(storesList.map((s) => [s.id, s]));
+  const validActiveItems = curItems.filter((i) => !!pMap[i.productId]);
   const receipts = sortReceiptsDesc(receiptsRaw);
 
   let selectedStoreKey = opts.storeFilter || "all";
   let searchQuery = opts.searchQuery || "";
 
+  const receiptStoreKey = (r) => {
+    const rs = resolveReceiptStore(r, sMap);
+    if (rs.isNone) return "__none__";
+    if (rs.isLive) return `live:${rs.storeId}`;
+    return `snap:${norm(rs.name)}`;
+  };
+
+  const liveNormNames = new Set();
   const storeFilterMap = new Map();
   for (const r of receipts) {
-    const key = r.storeNameSnapshot || "Senza supermercato";
+    const rs = resolveReceiptStore(r, sMap);
+    const key = receiptStoreKey(r);
+    if (rs.isLive) liveNormNames.add(norm(rs.name));
     if (!storeFilterMap.has(key)) {
       storeFilterMap.set(key, {
-        name: key,
-        bgColor: r.storeBgColorSnapshot || null,
-        textColor: r.storeTextColorSnapshot || null,
-        isNone: !r.storeId && key === "Senza supermercato"
+        key,
+        name: rs.name,
+        bgColor: rs.bgColor || null,
+        textColor: rs.textColor || null,
+        isNone: rs.isNone,
+        isLive: rs.isLive
       });
     }
   }
-  const storeNames = [...storeFilterMap.keys()].sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
-  if (selectedStoreKey !== "all" && !storeNames.includes(selectedStoreKey)) selectedStoreKey = "all";
+  const storeEntries = [...storeFilterMap.values()].map((info) => {
+    const hasNameCollision = !info.isNone && !info.isLive && liveNormNames.has(norm(info.name));
+    const displayName = hasNameCollision ? `${info.name} (archivio)` : info.name;
+    return { ...info, displayName };
+  }).sort((a, b) => {
+    if (a.isNone && !b.isNone) return 1;
+    if (!a.isNone && b.isNone) return -1;
+    return a.displayName.localeCompare(b.displayName, "it", { sensitivity: "base" });
+  });
+  const storeEntryByKey = new Map(storeEntries.map((e) => [e.key, e]));
+  if (selectedStoreKey !== "all" && !storeEntryByKey.has(selectedStoreKey)) selectedStoreKey = "all";
 
-  const storeFilterOptions = storeNames.map((name) => {
-    const info = storeFilterMap.get(name);
+  const storeFilterOptions = storeEntries.map((info) => {
     const html = info.isNone
       ? '<span style="font-style:italic">Senza supermercato</span>'
-      : (storeHasColors(info) ? storeChipHtml(info) : "");
-    return { id: name, label: name, html, disabled: false };
+      : (storeHasColors(info) ? storeChipHtml({ ...info, name: info.displayName }) : "");
+    return { id: info.key, label: info.displayName, html, disabled: false };
   });
   const allStoresLabel = "Tutti i supermercati";
 
@@ -390,19 +887,17 @@ export async function openArchiveWindow(opts = {}) {
   const searchInp = $("#archiveSearchInput");
   const delAllBtn = $("#delAllArchivedBtn");
 
-  const getStoreFilteredReceipts = () => receipts.filter((r) => {
-    const storeLabel = r.storeNameSnapshot || "Senza supermercato";
-    return selectedStoreKey === "all" || storeLabel === selectedStoreKey;
-  });
+  const getStoreFilteredReceipts = () => receipts.filter((r) => selectedStoreKey === "all" || receiptStoreKey(r) === selectedStoreKey);
 
   const paintReceipts = () => {
     const q = searchNorm(searchQuery);
     const storeFiltered = getStoreFilteredReceipts();
+    const selStoreLabel = storeEntryByKey.get(selectedStoreKey)?.displayName || selectedStoreKey;
     if (delAllBtn) {
       delAllBtn.disabled = storeFiltered.length === 0;
       const delLabel = selectedStoreKey === "all"
         ? "Elimina tutte le spese archiviate"
-        : `Elimina le spese archiviate di ${selectedStoreKey}`;
+        : `Elimina le spese archiviate di ${selStoreLabel}`;
       delAllBtn.title = delLabel;
       delAllBtn.setAttribute("aria-label", delLabel);
     }
@@ -412,9 +907,10 @@ export async function openArchiveWindow(opts = {}) {
       const matchedItems = [];
       for (const r of storeFiltered) {
         for (const it of (r.items || [])) {
-          const itemHay = searchNorm(`${it.productNameSnapshot || ""} ${it.productBrandSnapshot || ""}`);
+          const resolved = resolveReceiptItem(it, pMap, cMap);
+          const itemHay = searchNorm(`${resolved.resolvedTitle || ""} ${resolved.resolvedBrand || ""}`);
           if (tokens.every((tok) => itemHay.includes(tok))) {
-            matchedItems.push({ receipt: r, item: it });
+            matchedItems.push({ receipt: r, item: resolved });
           }
         }
       }
@@ -426,7 +922,7 @@ export async function openArchiveWindow(opts = {}) {
       container.innerHTML = matchedItems.map(({ receipt: r, item: it }) => {
         const dt = fmtIsoDate(r.purchaseDate, r.archivedAt);
         const topMetaHtml = `<div class="archive-search-item-head">
-          <span class="archive-search-item-store">${receiptStoreChip(r)}</span>
+          <span class="archive-search-item-store">${receiptStoreChip(r, "", sMap)}</span>
           <span class="archive-search-item-date">${dt}</span>
         </div>`;
         return renderReceiptItemRowHtml(it, {
@@ -460,7 +956,7 @@ export async function openArchiveWindow(opts = {}) {
       return swipeWrap(`<div class="list-row compact saved-row archive-row" data-receipt-row="${r.id}">
         <div class="archive-row-grid">
           <div class="archive-row-left">
-            <span class="archive-row-store">${receiptStoreChip(r)}</span>
+            <span class="archive-row-store">${receiptStoreChip(r, "", sMap)}</span>
             ${noteText ? `<div class="archive-row-note">${esc(noteText)}</div>` : ""}
             <div class="archive-row-meta">${t.itemsCount} ${t.itemsCount === 1 ? "articolo" : "articoli"}</div>
           </div>
@@ -485,9 +981,10 @@ export async function openArchiveWindow(opts = {}) {
       const rec = receipts.find((x) => x.id === row.dataset.receiptRow);
       if (!rec) return false;
       const dt = fmtIsoDate(rec.purchaseDate, rec.archivedAt);
+      const rs = resolveReceiptStore(rec, sMap);
       const yes = await confirmDialog(
         "Elimina scontrino",
-        `Lo scontrino di <strong>${esc(rec.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
+        `Lo scontrino di <strong>${esc(rs.name || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
         "Elimina",
         { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow({ storeFilter: selectedStoreKey, searchQuery }) }
       );
@@ -532,13 +1029,14 @@ export async function openArchiveWindow(opts = {}) {
     const targets = getStoreFilteredReceipts();
     if (!targets.length) return;
     const isAll = selectedStoreKey === "all";
+    const selStoreLabel = storeEntryByKey.get(selectedStoreKey)?.displayName || selectedStoreKey;
     const msg = isAll
       ? (targets.length === 1
         ? "L'unico scontrino archiviato verr\xE0 eliminato definitivamente. Procedere comunque?"
         : `Tutti i ${targets.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`)
       : (targets.length === 1
-        ? `Lo scontrino archiviato di <strong>${esc(selectedStoreKey)}</strong> verr\xE0 eliminato definitivamente. Procedere comunque?`
-        : `Tutti i ${targets.length} scontrini archiviati di <strong>${esc(selectedStoreKey)}</strong> verranno eliminati definitivamente. Procedere comunque?`);
+        ? `Lo scontrino archiviato di <strong>${esc(selStoreLabel)}</strong> verr\xE0 eliminato definitivamente. Procedere comunque?`
+        : `Tutti i ${targets.length} scontrini archiviati di <strong>${esc(selStoreLabel)}</strong> verranno eliminati definitivamente. Procedere comunque?`);
     const yes = await confirmDialog(
       "Elimina archivio spese",
       msg,
@@ -557,7 +1055,7 @@ export async function openArchiveWindow(opts = {}) {
     await openArchiveWindow({ storeFilter: "all", searchQuery: isAll ? "" : searchQuery });
     showToast(isAll
       ? "Archivio spese svuotato"
-      : (targets.length === 1 ? `Scontrino di ${selectedStoreKey} eliminato` : `Spese di ${selectedStoreKey} eliminate`));
+      : (targets.length === 1 ? `Scontrino di ${selStoreLabel} eliminato` : `Spese di ${selStoreLabel} eliminate`));
   });
 }
 
@@ -1038,35 +1536,35 @@ export async function openArchiveCurrentListModal() {
 }
 
 export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detailState = {}) {
-  const receipt = await getOne("archivedReceipts", receiptId);
+  const [receipt, products, cats, storesList, routes] = await Promise.all([
+    getOne("archivedReceipts", receiptId),
+    getAll("products"),
+    getAll("categories"),
+    getAll("stores"),
+    getAll("storeCategoryRoutes")
+  ]);
   if (!receipt) {
     showToast("Scontrino non trovato.");
     await openArchiveWindow(archiveOpts);
     return;
   }
 
+  const pMap = Object.fromEntries(products.map((p) => [p.id, p]));
+  const cMap = Object.fromEntries(cats.map((c) => [c.id, c]));
+  const sMap = Object.fromEntries(storesList.map((s) => [s.id, s]));
+
   let currentReceipt = receipt;
+  const resolvedStore = resolveReceiptStore(currentReceipt, sMap);
   const t = computeReceiptTotals(currentReceipt);
   const dt = fmtIsoDate(currentReceipt.purchaseDate, currentReceipt.archivedAt);
   const adjustments = Array.isArray(currentReceipt.adjustments) ? currentReceipt.adjustments : [];
-  let items = Array.isArray(currentReceipt.items) ? currentReceipt.items : [];
-  if (!currentReceipt.itemsOrderedByList && items.length > 1) {
-    const routes = currentReceipt.storeId ? await getAll("storeCategoryRoutes") : [];
-    const routePosition = (sid, catId) => {
-      if (!sid || !catId) return 99999;
-      return routes.find((r) => r.storeId === sid && r.categoryId === catId)?.position ?? 99999;
-    };
-    items = [...items].sort((a, b) => {
-      if (currentReceipt.storeId) {
-        const d = routePosition(currentReceipt.storeId, a.categoryId) - routePosition(currentReceipt.storeId, b.categoryId);
-        if (d) return d;
-      }
-      const ca = a.categoryId ? (a.categoryNameSnapshot || "") : "";
-      const cb = b.categoryId ? (b.categoryNameSnapshot || "") : "";
-      return ca.localeCompare(cb, "it", { sensitivity: "base" }) ||
-        (a.productNameSnapshot || "").localeCompare(b.productNameSnapshot || "", "it", { sensitivity: "base" });
-    });
-  }
+  const rawItems = Array.isArray(currentReceipt.items) ? currentReceipt.items : [];
+  const items = sortResolvedReceiptItems(
+    rawItems.map((it) => resolveReceiptItem(it, pMap, cMap)),
+    currentReceipt.storeId,
+    sMap,
+    routes
+  );
   let adjType = detailState.adjType === "deduct" ? "deduct" : "add";
   let selectedPreset = "";
 
@@ -1145,7 +1643,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     <div class="receipt-hero-sticky">
       <div class="receipt-hero-card">
         <div class="receipt-hero-head">
-          <div class="receipt-hero-store">${receiptStoreChip(currentReceipt, "store-chip-heading")}</div>
+          <div class="receipt-hero-store">${receiptStoreChip(currentReceipt, "store-chip-heading", sMap)}</div>
           <span class="receipt-hero-date">${dt}</span>
         </div>
         <div class="name-box receipt-hero-note-box">
@@ -1206,7 +1704,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       action: async () => {
         const yes = await confirmDialog(
           "Elimina scontrino",
-          `Lo scontrino di <strong>${esc(currentReceipt.storeNameSnapshot || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
+          `Lo scontrino di <strong>${esc(resolvedStore.name || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
           "Elimina",
           { overlay: true, closeButton: false, backdropClose: false }
         );
@@ -1236,7 +1734,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Gli articoli dello scontrino sono congelati alla data di archiviazione e non risentono di future modifiche al catalogo.<br>Puoi aggiungere AGGIUNTE (es. sacchetti) o DETRAZIONI (es. buoni fedelt\xE0) allo scontrino, o eliminarle scorrendo verso destra.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Prezzi, quantit\xE0, unit\xE0 di vendita e formato degli articoli restano congelati alla data di archiviazione; nome, marca, reparto, supermercato e percorso di spesa si aggiornano automaticamente con il catalogo.<br>Puoi aggiungere AGGIUNTE (es. sacchetti) o DETRAZIONI (es. buoni fedelt\xE0) allo scontrino, o eliminarle scorrendo verso destra.</div>`);
   }
 
   const root = $("#modalRoot");

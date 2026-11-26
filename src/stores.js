@@ -5,6 +5,7 @@ import { $, autoTextColor, esc, norm, normHex6, now, storeChipHtml, storeHasColo
 import { allCategoriesSorted, allStoresSorted, getAll, getOne, putOne, setDefaultStore, settings, txDone } from "./storage.js";
 import { bindSwipeDelete, closeModal, confirmDialog, customDropdown, forceUppercaseInput, infoPop, modal, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireCustomDropdown, wireSingleFilter } from "./ui.js";
 import { openNewCategoryWindow } from "./categories.js";
+import { countArchivedReceiptsForStore, deleteStaleTombstonesInTx, findOrphanStoreMatch, prepareFrozenReceiptsForStoreDelete, promptArchiveRelink, unifyOrphanStoreIdsInTx } from "./archive.js";
 
 export function openStoreForm() {
   const ssPromise = allStoresSorted();
@@ -35,14 +36,40 @@ export function openStoreForm() {
     return name;
   };
   const create = async (name) => {
-    const none = !(await getAll("stores")).length;
-    const store = { id: uuid(), name, nameNormalized: norm(name), createdAt: now(), updatedAt: now() };
-    await putOne("stores", store);
-    if (none) {
-      const cur = await settings();
-      await putOne("settings", { ...cur, defaultStoreId: store.id });
+    const [existingStores, receipts] = await Promise.all([getAll("stores"), getAll("archivedReceipts")]);
+    const none = !existingStores.length;
+    const orphanMatch = findOrphanStoreMatch(name, existingStores, receipts);
+    let relinked = false;
+    let storeId = uuid();
+    if (orphanMatch) {
+      relinked = await promptArchiveRelink({
+        entityLabel: "Il supermercato",
+        entityName: name,
+        receiptCount: orphanMatch.receiptCount
+      });
+      if (relinked) storeId = orphanMatch.primaryId;
     }
-    return store;
+    const store = { id: storeId, name, nameNormalized: norm(name), createdAt: now(), updatedAt: now() };
+    if (relinked && (orphanMatch.bgColor || orphanMatch.textColor)) {
+      store.bgColor = orphanMatch.bgColor || null;
+      store.textColor = orphanMatch.textColor || null;
+    }
+    if (relinked) {
+      const [allTombstones, curStg] = await Promise.all([getAll("tombstones"), none ? settings() : Promise.resolve(null)]);
+      const tx = state.db.transaction(none ? ["stores", "archivedReceipts", "tombstones", "settings"] : ["stores", "archivedReceipts", "tombstones"], "readwrite");
+      tx.objectStore("stores").put(store);
+      deleteStaleTombstonesInTx(tx, "store", [storeId], allTombstones);
+      unifyOrphanStoreIdsInTx(tx, storeId, orphanMatch.orphanIds, receipts);
+      if (none && curStg) tx.objectStore("settings").put({ ...curStg, defaultStoreId: store.id });
+      await txDone(tx);
+    } else {
+      await putOne("stores", store);
+      if (none) {
+        const cur = await settings();
+        await putOne("settings", { ...cur, defaultStoreId: store.id });
+      }
+    }
+    return { store, relinked };
   };
   modal(
     "Nuovo supermercato",
@@ -52,18 +79,18 @@ export function openStoreForm() {
       { label: "Configura", class: "btn-primary", action: async () => {
         const name = await check();
         if (!name) return;
-        const store = await create(name);
+        const { store, relinked } = await create(name);
         state.currentModal = null;
         state.currentModalKeep = false;
         await openManageCategories(store.id);
         renderStores();
-        showToast("Supermercato aggiunto");
+        showToast(relinked ? "Supermercato aggiunto e ricollegato allo storico" : "Supermercato aggiunto");
       } }
     ],
     { closeButton: false, alignTop: true, backdropClose: false, themed: true, onClose: async () => {
       if (confirmed && !(await getAll("stores")).some((x) => x.nameNormalized === norm(confirmed))) {
-        await create(confirmed);
-        showToast("Supermercato aggiunto");
+        const { relinked } = await create(confirmed);
+        showToast(relinked ? "Supermercato aggiunto e ricollegato allo storico" : "Supermercato aggiunto");
       }
       await renderStores();
     } }
@@ -159,21 +186,37 @@ export async function renderStores() {
     });
     bindSwipeDelete(container, "[data-delete-store]", async (row) => {
       const storeId = row.dataset.deleteStore;
-      const stObj = await getOne("stores", storeId);
+      const [stObj, archivedCount] = await Promise.all([getOne("stores", storeId), countArchivedReceiptsForStore(storeId)]);
       if (!stObj) return false;
-      const yes = await confirmDialog("Elimina supermercato", `Il supermercato \u201C${esc(stObj.name)}\u201D verr\xE0 rimosso definitivamente.<br>I relativi reparti ed articoli rimarranno regolarmente disponibili nel database.<br>Procedere comunque?`, "Elimina", { closeButton: false, backdropClose: false });
+      const archNote = archivedCount > 0
+        ? `<br>Presente in <strong>${archivedCount} ${archivedCount === 1 ? "spesa archiviata" : "spese archiviate"}</strong>, che verr${archivedCount === 1 ? "\xE0" : "anno"} comunque conservat${archivedCount === 1 ? "a" : "e"}.`
+        : "";
+      const yes = await confirmDialog("Elimina supermercato", `Il supermercato \u201C${esc(stObj.name)}\u201D verr\xE0 rimosso definitivamente.<br>I relativi reparti ed articoli rimarranno regolarmente disponibili nel database.${archNote}<br>Procedere comunque?`, "Elimina", { closeButton: false, backdropClose: false });
       if (!yes) return false;
-      const [rList, psList, ppList, itemList, curStg2] = await Promise.all([getAll("storeCategoryRoutes"), getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems"), getOne("settings", "main")]);
+      const [rList, psList, ppList, itemList, curStg2, allProds, allCats, receipts] = await Promise.all([
+        getAll("storeCategoryRoutes"),
+        getAll("productStores"),
+        getAll("productPrices"),
+        getAll("shoppingListItems"),
+        getOne("settings", "main"),
+        getAll("products"),
+        getAll("categories"),
+        getAll("archivedReceipts")
+      ]);
+      const pMap = Object.fromEntries(allProds.map((x) => [x.id, x]));
+      const cMap = Object.fromEntries(allCats.map((x) => [x.id, x]));
+      const frozenReceipts = prepareFrozenReceiptsForStoreDelete(new Set([storeId]), pMap, cMap, { [storeId]: stObj }, rList, receipts);
       const snapRoutes = rList.filter((x) => x.storeId === storeId);
       const snapPs = psList.filter((x) => x.storeId === storeId);
       const snapPp = ppList.filter((x) => x.storeId === storeId);
       const snapItems = itemList.filter((x) => x.storeId === storeId).map((x) => ({ ...x }));
       const wasDefault = curStg2?.defaultStoreId === storeId;
-      const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "tombstones"], "readwrite");
+      const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "archivedReceipts", "tombstones"], "readwrite");
       for (const x of snapRoutes) tx.objectStore("storeCategoryRoutes").delete(x.id);
       for (const x of snapPs) tx.objectStore("productStores").delete(x.id);
       for (const x of snapPp) tx.objectStore("productPrices").delete(x.id);
       for (const x of snapItems) tx.objectStore("shoppingListItems").put({ ...x, storeId: null, updatedAt: now() });
+      for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
       if (wasDefault) tx.objectStore("settings").put({ ...curStg2, defaultStoreId: null });
       tx.objectStore("stores").delete(storeId);
       tx.objectStore("tombstones").put({ id: uuid(), entityType: "store", entityId: storeId, deletedAt: now(), revision: Date.now() });
@@ -202,8 +245,21 @@ export async function renderStores() {
   $("#delAllStoresBtn").onclick = async () => {
     if (!ss.length) return;
     if (!await confirmDialog("Elimina tutti i supermercati", "Tutti i supermercati verranno rimossi definitivamente.<br>I relativi reparti ed articoli rimarranno regolarmente disponibili nel database.<br>Procedere comunque?", "Elimina tutti", { backdropClose: false })) return;
-    const [ps, pp, its, st0] = await Promise.all([getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems"), getOne("settings", "main")]);
-    const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "tombstones"], "readwrite");
+    const [ps, pp, its, st0, allProds, allCats, receipts] = await Promise.all([
+      getAll("productStores"),
+      getAll("productPrices"),
+      getAll("shoppingListItems"),
+      getOne("settings", "main"),
+      getAll("products"),
+      getAll("categories"),
+      getAll("archivedReceipts")
+    ]);
+    const pMap = Object.fromEntries(allProds.map((x) => [x.id, x]));
+    const cMap = Object.fromEntries(allCats.map((x) => [x.id, x]));
+    const sMap = Object.fromEntries(ss.map((x) => [x.id, x]));
+    const storeIdsSet = new Set(ss.map((x) => x.id));
+    const frozenReceipts = prepareFrozenReceiptsForStoreDelete(storeIdsSet, pMap, cMap, sMap, routes, receipts);
+    const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "archivedReceipts", "tombstones"], "readwrite");
     for (const r of routes) tx.objectStore("storeCategoryRoutes").delete(r.id);
     ps.forEach((x) => tx.objectStore("productStores").delete(x.id));
     pp.forEach((x) => tx.objectStore("productPrices").delete(x.id));
@@ -214,6 +270,7 @@ export async function renderStores() {
         tx.objectStore("shoppingListItems").put(x);
       }
     });
+    for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
     if (st0) tx.objectStore("settings").put({ ...st0, defaultStoreId: null });
     for (const x of ss) {
       tx.objectStore("stores").delete(x.id);
@@ -799,8 +856,21 @@ export async function openCopyRoute(storeId, returnToManage = () => openManageCa
 }
 
 export async function deleteStore(storeId) {
-  const [routes, associations, prices, items, st] = await Promise.all([getAll("storeCategoryRoutes"), getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems"), getOne("settings", "main")]);
-  const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "tombstones"], "readwrite");
+  const [stObj, routes, associations, prices, items, st, allProds, allCats, receipts] = await Promise.all([
+    getOne("stores", storeId),
+    getAll("storeCategoryRoutes"),
+    getAll("productStores"),
+    getAll("productPrices"),
+    getAll("shoppingListItems"),
+    getOne("settings", "main"),
+    getAll("products"),
+    getAll("categories"),
+    getAll("archivedReceipts")
+  ]);
+  const pMap = Object.fromEntries(allProds.map((x) => [x.id, x]));
+  const cMap = Object.fromEntries(allCats.map((x) => [x.id, x]));
+  const frozenReceipts = stObj ? prepareFrozenReceiptsForStoreDelete(new Set([storeId]), pMap, cMap, { [storeId]: stObj }, routes, receipts) : [];
+  const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "archivedReceipts", "tombstones"], "readwrite");
   for (const x of routes) if (x.storeId === storeId) tx.objectStore("storeCategoryRoutes").delete(x.id);
   for (const x of associations) if (x.storeId === storeId) tx.objectStore("productStores").delete(x.id);
   for (const x of prices) if (x.storeId === storeId) tx.objectStore("productPrices").delete(x.id);
@@ -809,6 +879,7 @@ export async function deleteStore(storeId) {
     x.updatedAt = now();
     tx.objectStore("shoppingListItems").put(x);
   }
+  for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
   if (st?.defaultStoreId === storeId) tx.objectStore("settings").put({ ...st, defaultStoreId: null });
   tx.objectStore("stores").delete(storeId);
   tx.objectStore("tombstones").put({ id: uuid(), entityType: "store", entityId: storeId, deletedAt: now(), revision: Date.now() });

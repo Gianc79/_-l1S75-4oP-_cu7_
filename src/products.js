@@ -5,7 +5,8 @@ import { $, composeProductDescription, displayUnit, esc, eurosFromInput, extract
 import { activeItems, allCategoriesSorted, allProductsSorted, allStoresSorted, categoryMap, getAll, getOne, putOne, settings, storeIdsForProduct, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, decorateInput, forceUppercaseInput, infoPop, modal, releaseModalKeyboard, selectAllOnFocus, setDropdownValue, showToast, singleFilterHtml, swipeWrap, tipBtn, updateSingleFilterUI, wireCustomDropdown, wireSingleFilter } from "./ui.js";
 import { actuallyAddItem, openAddItem, openNewListItemEditor, renderList } from "./shoppingList.js";
-import { openCategoryForm, openCategoryProductPicker, renderCategories } from "./categories.js";
+import { createCategoryRecord, openCategoryForm, openCategoryProductPicker, renderCategories } from "./categories.js";
+import { countArchivedReceiptsForProduct, deleteStaleTombstonesInTx, findOrphanProductMatch, prepareFrozenReceiptsForProductDelete, promptArchiveRelink, unifyOrphanProductIdsInTx } from "./archive.js";
 import { render } from "./router.js";
 
 export async function renderProducts() {
@@ -79,22 +80,34 @@ export async function renderProducts() {
     $("#productsList").querySelectorAll("[data-product]").forEach((b) => b.addEventListener("click", () => openProductForm(b.dataset.product, "products")));
     bindSwipeDelete($("#productsList"), "[data-delete-product]", async (row) => {
       const pid = row.dataset.deleteProduct;
-      const p = await getOne("products", pid);
+      const [p, archivedCount] = await Promise.all([getOne("products", pid), countArchivedReceiptsForProduct(pid)]);
       if (!p) return false;
       const dpDel = productDisplayParts(p);
       const delLabel = [dpDel.title, dpDel.brand].filter(Boolean).join(" ") || p.name;
-      const yes = await confirmDialog("Elimina articolo", `L\u2019articolo \u201C${esc(delLabel)}\u201D verr\xE0 rimosso definitivamente dal database. Procedere comunque?`, "Elimina", { closeButton: false, backdropClose: false });
+      const archNote = archivedCount > 0
+        ? `<br>Presente in <strong>${archivedCount} ${archivedCount === 1 ? "spesa archiviata" : "spese archiviate"}</strong>, che verr${archivedCount === 1 ? "\xE0" : "anno"} comunque conservat${archivedCount === 1 ? "a" : "e"}.`
+        : "";
+      const yes = await confirmDialog("Elimina articolo", `L\u2019articolo \u201C${esc(delLabel)}\u201D verr\xE0 rimosso definitivamente dal database.${archNote}<br>Procedere comunque?`, "Elimina", { closeButton: false, backdropClose: false });
       if (!yes) return false;
-      const [associations, prices, items] = await Promise.all([getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems")]);
+      const [associations, prices, items, allCats, receipts] = await Promise.all([
+        getAll("productStores"),
+        getAll("productPrices"),
+        getAll("shoppingListItems"),
+        getAll("categories"),
+        getAll("archivedReceipts")
+      ]);
+      const cMap = Object.fromEntries(allCats.map((c) => [c.id, c]));
+      const frozenReceipts = prepareFrozenReceiptsForProductDelete(new Set([pid]), { [pid]: p }, cMap, receipts);
       const snapPs = associations.filter((x) => x.productId === pid);
       const snapPp = prices.filter((x) => x.productId === pid);
       const snapIts = items.filter((x) => x.productId === pid);
       const tombId = uuid();
-      const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "tombstones"], "readwrite");
+      const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "archivedReceipts", "tombstones"], "readwrite");
       tx.objectStore("products").delete(pid);
       for (const x of snapPs) tx.objectStore("productStores").delete(x.id);
       for (const x of snapPp) tx.objectStore("productPrices").delete(x.id);
       for (const x of snapIts) tx.objectStore("shoppingListItems").delete(x.id);
+      for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
       tx.objectStore("tombstones").put({ id: tombId, entityType: "product", entityId: pid, deletedAt: now(), revision: Date.now() });
       await txDone(tx);
       await renderProducts();
@@ -151,8 +164,18 @@ export async function renderProducts() {
       msg = "Tutti gli articoli " + parts.join(" ") + " verranno rimossi definitivamente.<br>Procedere comunque?";
     }
     if (!await confirmDialog("Elimina articoli", msg, "Elimina", { backdropClose: false })) return;
-    const ids = new Set(scope.map((x) => x.id)), [ps, pp, its] = await Promise.all([getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems")]);
-    const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "tombstones"], "readwrite");
+    const ids = new Set(scope.map((x) => x.id));
+    const [ps, pp, its, allCats, receipts] = await Promise.all([
+      getAll("productStores"),
+      getAll("productPrices"),
+      getAll("shoppingListItems"),
+      getAll("categories"),
+      getAll("archivedReceipts")
+    ]);
+    const pMap = Object.fromEntries(scope.map((x) => [x.id, x]));
+    const cMap = Object.fromEntries(allCats.map((c) => [c.id, c]));
+    const frozenReceipts = prepareFrozenReceiptsForProductDelete(ids, pMap, cMap, receipts);
+    const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "archivedReceipts", "tombstones"], "readwrite");
     for (const x of scope) {
       tx.objectStore("products").delete(x.id);
       tx.objectStore("tombstones").put({ id: uuid(), entityType: "product", entityId: x.id, deletedAt: now(), revision: Date.now() });
@@ -166,6 +189,7 @@ export async function renderProducts() {
     its.forEach((x) => {
       if (ids.has(x.productId)) tx.objectStore("shoppingListItems").delete(x.id);
     });
+    for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
     await txDone(tx);
     pv.q = "";
     await renderProducts();
@@ -1455,12 +1479,11 @@ export async function createCategoryInline(onCreated, onCancelled = () => openPr
         showToast("Esiste gi\xE0 un reparto con questo nome.");
         return;
       }
-      const c = { id: uuid(), name, nameNormalized: norm(name), createdAt: now(), updatedAt: now() };
-      await putOne("categories", c);
+      const { category: c, relinked } = await createCategoryRecord(name);
       state.currentModal = null;
       state.currentModalKeep = false;
       await onCreated(c);
-      showToast("Reparto creato");
+      showToast(relinked ? "Reparto creato e ricollegato allo storico" : "Reparto creato");
     } }
   ], { closeButton: false, backdropClose: false, keepModalOnClose: true, onClose: onCancelled, alignTop: true, themed: true });
   forceUppercaseInput($("#newCatName"));
@@ -1576,28 +1599,71 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
     if (amount !== null) priceRecords.push({ storeId: sid, amountMinor: amount });
   }
   const existing = targetProductId ? await getOne("products", targetProductId) : null;
+  const roundedPackQty = Math.round(packQty * 1e3) / 1e3;
+  if (existing) {
+    const prevF = extractProductFields(existing);
+    const prevPackQty = prevF.packaging === "sfuso"
+      ? 1
+      : (Number.isFinite(Number(existing.packQty)) && Number(existing.packQty) > 0 ? Math.round(Number(existing.packQty) * 1e3) / 1e3 : null);
+    const formatChanged = prevF.packaging !== packaging
+      || prevF.packUnit !== packUnit
+      || existing.unit !== unit
+      || (packaging === "confezione" && prevPackQty !== roundedPackQty);
+    if (formatChanged) {
+      const archivedCount = await countArchivedReceiptsForProduct(targetProductId);
+      if (archivedCount > 0) {
+        const speseTxt = archivedCount === 1 ? "1 spesa archiviata" : `${archivedCount} spese archiviate`;
+        const proceed = await confirmDialog(
+          "Modifica formato articolo",
+          `Questo articolo \xE8 presente in <strong>${speseTxt}</strong>.<br><br>Modificando <strong>imballo, unit\xE0 o contenuto netto</strong> sull\u2019articolo esistente, i dati storici di formato e prezzo negli scontrini archiviati resteranno congelati, ma i futuri confronti statistici potrebbero risultare disomogenei.<br><br>Per un formato diverso \xE8 consigliabile usare <strong>\u00ABSalva nuovo\u00BB</strong>. Vuoi modificare comunque l\u2019articolo esistente?`,
+          "Modifica comunque",
+          { overlay: true, cancelFirst: true, confirmClass: "btn-primary", cancelLabel: "Annulla", themed: true, backdropClose: false }
+        );
+        if (!proceed) return;
+      }
+    }
+  }
+  let relinkMatch = null;
+  let relinkReceipts = [];
+  if (isNew) {
+    relinkReceipts = await getAll("archivedReceipts");
+    const candidate = findOrphanProductMatch({ itemName, brand, packaging, packUnit, packQty: roundedPackQty }, products, relinkReceipts);
+    if (candidate) {
+      const dpPreview = productDisplayParts({ itemName, brand, packaging, packUnit, packQty: roundedPackQty, packPieces, unit, name });
+      const relinkLabel = [dpPreview.title, dpPreview.brand].filter(Boolean).join(" ") || name;
+      const yesRelink = await promptArchiveRelink({
+        entityLabel: "L\u2019articolo",
+        entityName: relinkLabel,
+        receiptCount: candidate.receiptCount
+      });
+      if (yesRelink) relinkMatch = candidate;
+    }
+  }
   const prod = {
-    id: targetProductId || uuid(),
+    id: targetProductId || (relinkMatch ? relinkMatch.primaryId : uuid()),
     name,
     nameNormalized: norm(name),
     itemName,
     brand,
     packaging,
     packUnit,
-    packQty: Math.round(packQty * 1e3) / 1e3,
+    packQty: roundedPackQty,
     packPieces,
     categoryId,
     unit,
     createdAt: existing?.createdAt || now(),
     updatedAt: now()
   };
-  const [existingAssociations, existingPrices, existingListItems, existingSavedLists] = await Promise.all([
+  const [existingAssociations, existingPrices, existingListItems, existingSavedLists, allTombstones] = await Promise.all([
     getAll("productStores"),
     getAll("productPrices"),
     targetProductId ? getAll("shoppingListItems") : Promise.resolve([]),
-    targetProductId ? getAll("savedLists") : Promise.resolve([])
+    targetProductId ? getAll("savedLists") : Promise.resolve([]),
+    relinkMatch ? getAll("tombstones") : Promise.resolve([])
   ]);
-  const txStores = targetProductId ? ["products", "productStores", "productPrices", "shoppingListItems", "savedLists"] : ["products", "productStores", "productPrices"];
+  const txStores = targetProductId
+    ? ["products", "productStores", "productPrices", "shoppingListItems", "savedLists"]
+    : (relinkMatch ? ["products", "productStores", "productPrices", "archivedReceipts", "tombstones"] : ["products", "productStores", "productPrices"]);
   const tx = state.db.transaction(txStores, "readwrite");
   tx.objectStore("products").put(prod);
   const ps = tx.objectStore("productStores"), pp = tx.objectStore("productPrices");
@@ -1605,6 +1671,10 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
   for (const x of existingPrices) if (x.productId === prod.id) pp.delete(x.id);
   for (const sid of selected) ps.put({ id: uuid(), productId: prod.id, storeId: sid, createdAt: now() });
   for (const pr of priceRecords) pp.put({ id: uuid(), productId: prod.id, storeId: pr.storeId, amountMinor: pr.amountMinor, currency: "EUR", updatedAt: now() });
+  if (relinkMatch) {
+    deleteStaleTombstonesInTx(tx, "product", [prod.id], allTombstones);
+    unifyOrphanProductIdsInTx(tx, prod.id, relinkMatch.orphanIds, relinkReceipts);
+  }
   if (targetProductId && unit === "pz") {
     const sli = tx.objectStore("shoppingListItems");
     for (const it of existingListItems) {
@@ -1656,7 +1726,9 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
       addedToList = true;
     }
   }
-  const addedMsg = addedToList ? "Articolo aggiunto e inserito nella lista" : "Articolo aggiunto";
+  const addedMsg = relinkMatch
+    ? (addedToList ? "Articolo ricollegato allo storico e inserito nella lista" : "Articolo aggiunto e ricollegato allo storico")
+    : (addedToList ? "Articolo aggiunto e inserito nella lista" : "Articolo aggiunto");
   const savedMsg = addedToList ? "Articolo salvato e inserito nella lista" : (alreadyInList ? "Articolo salvato (gi\xE0 nella lista)" : "Articolo salvato");
   const resultMsg = isNew ? addedMsg : savedMsg;
   if (returnPage === "addItem") {
@@ -1706,12 +1778,22 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
 }
 
 export async function deleteProduct(productId, returnCategoryId = null) {
-  const [associations, prices, items] = await Promise.all([getAll("productStores"), getAll("productPrices"), getAll("shoppingListItems")]);
-  const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "tombstones"], "readwrite");
+  const [p, associations, prices, items, allCats, receipts] = await Promise.all([
+    getOne("products", productId),
+    getAll("productStores"),
+    getAll("productPrices"),
+    getAll("shoppingListItems"),
+    getAll("categories"),
+    getAll("archivedReceipts")
+  ]);
+  const cMap = Object.fromEntries(allCats.map((c) => [c.id, c]));
+  const frozenReceipts = p ? prepareFrozenReceiptsForProductDelete(new Set([productId]), { [productId]: p }, cMap, receipts) : [];
+  const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "archivedReceipts", "tombstones"], "readwrite");
   tx.objectStore("products").delete(productId);
   for (const x of associations) if (x.productId === productId) tx.objectStore("productStores").delete(x.id);
   for (const x of prices) if (x.productId === productId) tx.objectStore("productPrices").delete(x.id);
   for (const x of items) if (x.productId === productId) tx.objectStore("shoppingListItems").delete(x.id);
+  for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
   tx.objectStore("tombstones").put({ id: uuid(), entityType: "product", entityId: productId, deletedAt: now(), revision: Date.now() });
   await txDone(tx);
   if (returnCategoryId) {
