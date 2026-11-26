@@ -1108,6 +1108,40 @@ export async function openArchiveWindow(opts = {}) {
 
   const getFilteredReceipts = () => receipts.filter((r) => (selectedStoreKey === "all" || receiptStoreKey(r) === selectedStoreKey) && matchesDateFilter(r));
 
+  const getFilteredState = () => {
+    const q = searchNorm(searchQuery);
+    const baseReceipts = getFilteredReceipts();
+    if (q && searchField !== "receipt") {
+      const tokens = q.split(" ").filter(Boolean);
+      const matchedItems = [];
+      const matchedReceiptMap = new Map();
+      for (const r of baseReceipts) {
+        for (const it of (r.items || [])) {
+          const resolved = resolveReceiptItem(it, pMap, cMap);
+          const itemHay = searchField === "category"
+            ? searchNorm(resolved.resolvedCategoryName || "")
+            : searchField === "brand"
+              ? searchNorm(resolved.resolvedBrand || "")
+              : searchNorm(resolved.resolvedItemName || resolved.resolvedTitle || it.productNameSnapshot || "");
+          if (itemHay && tokens.every((tok) => itemHay.includes(tok))) {
+            matchedItems.push({ receipt: r, item: resolved });
+            if (!matchedReceiptMap.has(r.id)) matchedReceiptMap.set(r.id, r);
+          }
+        }
+      }
+      const targetReceipts = [...matchedReceiptMap.values()];
+      return { q, matchedItems, visibleReceipts: targetReceipts, targetReceipts };
+    }
+    const visibleReceipts = (q && searchField === "receipt")
+      ? baseReceipts.filter((r) => {
+          const tokens = q.split(" ").filter(Boolean);
+          const noteHay = searchNorm(r.note || "");
+          return noteHay && tokens.every((tok) => noteHay.includes(tok));
+        })
+      : baseReceipts;
+    return { q, matchedItems: null, visibleReceipts, targetReceipts: visibleReceipts };
+  };
+
   const syncDateFilterUI = () => {
     const active = isDateFilterActive();
     if (dateTrigger) dateTrigger.classList.toggle("has-filter", active);
@@ -1142,41 +1176,21 @@ export async function openArchiveWindow(opts = {}) {
   };
 
   const paintReceipts = () => {
-    const q = searchNorm(searchQuery);
-    const filtered = getFilteredReceipts();
-    const selStoreLabel = storeEntryByKey.get(selectedStoreKey)?.displayName || selectedStoreKey;
+    const { q, matchedItems, visibleReceipts, targetReceipts } = getFilteredState();
     const dateActive = isDateFilterActive();
+    const hasAnyFilter = selectedStoreKey !== "all" || dateActive || !!q;
     syncResetBtn();
     if (delAllBtn) {
-      delAllBtn.disabled = filtered.length === 0;
-      let delLabel = "Elimina tutte le spese archiviate";
-      if (selectedStoreKey !== "all" && dateActive) {
-        delLabel = `Elimina le spese archiviate di ${selStoreLabel} (${getDateFilterLabel()})`;
-      } else if (selectedStoreKey !== "all") {
-        delLabel = `Elimina le spese archiviate di ${selStoreLabel}`;
-      } else if (dateActive) {
-        delLabel = `Elimina le spese archiviate (${getDateFilterLabel()})`;
-      }
+      delAllBtn.disabled = targetReceipts.length === 0;
+      delAllBtn.classList.toggle("dim", targetReceipts.length === 0);
+      const delLabel = !hasAnyFilter
+        ? "Elimina tutte le spese archiviate"
+        : (targetReceipts.length === 1 ? "Elimina lo scontrino filtrato" : "Elimina gli scontrini filtrati");
       delAllBtn.title = delLabel;
       delAllBtn.setAttribute("aria-label", delLabel);
     }
 
-    if (q && searchField !== "receipt") {
-      const tokens = q.split(" ").filter(Boolean);
-      const matchedItems = [];
-      for (const r of filtered) {
-        for (const it of (r.items || [])) {
-          const resolved = resolveReceiptItem(it, pMap, cMap);
-          const itemHay = searchField === "category"
-            ? searchNorm(resolved.resolvedCategoryName || "")
-            : searchField === "brand"
-              ? searchNorm(resolved.resolvedBrand || "")
-              : searchNorm(resolved.resolvedItemName || resolved.resolvedTitle || it.productNameSnapshot || "");
-          if (itemHay && tokens.every((tok) => itemHay.includes(tok))) {
-            matchedItems.push({ receipt: r, item: resolved });
-          }
-        }
-      }
+    if (matchedItems) {
       if (countBadge) countBadge.textContent = String(matchedItems.length);
       if (!matchedItems.length) {
         const emptyMsg = searchField === "category"
@@ -1209,14 +1223,6 @@ export async function openArchiveWindow(opts = {}) {
       });
       return;
     }
-
-    const visibleReceipts = (q && searchField === "receipt")
-      ? filtered.filter((r) => {
-          const tokens = q.split(" ").filter(Boolean);
-          const noteHay = searchNorm(r.note || "");
-          return noteHay && tokens.every((tok) => noteHay.includes(tok));
-        })
-      : filtered;
 
     if (countBadge) countBadge.textContent = String(visibleReceipts.length);
 
@@ -1476,50 +1482,55 @@ export async function openArchiveWindow(opts = {}) {
   }
 
   $("#delAllArchivedBtn")?.addEventListener("click", async () => {
-    const targets = getFilteredReceipts();
-    if (!targets.length) return;
+    const { q, targetReceipts } = getFilteredState();
+    if (!targetReceipts.length) return;
     const dateActive = isDateFilterActive();
-    const isAll = selectedStoreKey === "all" && !dateActive;
+    const qTrim = searchQuery.trim();
+    const hasQuery = !!q;
+    const isAll = selectedStoreKey === "all" && !dateActive && !hasQuery;
     const selStoreLabel = storeEntryByKey.get(selectedStoreKey)?.displayName || selectedStoreKey;
     const dateLbl = getDateFilterLabel();
     let msg;
     if (isAll) {
-      msg = targets.length === 1
+      msg = targetReceipts.length === 1
         ? "L'unico scontrino archiviato verr\xE0 eliminato definitivamente. Procedere comunque?"
-        : `Tutti i ${targets.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`;
+        : `Tutti i ${targetReceipts.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`;
     } else {
       const scopeParts = [];
       if (selectedStoreKey !== "all") scopeParts.push(`di <strong>${esc(selStoreLabel)}</strong>`);
       if (dateActive) scopeParts.push(`(${esc(dateLbl)})`);
+      if (hasQuery) {
+        const fieldLbl = (SEARCH_FIELDS[searchField] || SEARCH_FIELDS.receipt).label.toLowerCase();
+        scopeParts.push(`corrispondenti a ${esc(fieldLbl)} \u201C${esc(qTrim)}\u201D`);
+      }
       const scopeTxt = scopeParts.join(" ");
-      msg = targets.length === 1
-        ? `Lo scontrino archiviato ${scopeTxt} verr\xE0 eliminato definitivamente. Procedere comunque?`
-        : `Tutti i ${targets.length} scontrini archiviati ${scopeTxt} verranno eliminati definitivamente. Procedere comunque?`;
+      msg = targetReceipts.length === 1
+        ? `Lo scontrino filtrato ${scopeTxt} verr\xE0 eliminato definitivamente. Procedere comunque?`
+        : `I ${targetReceipts.length} scontrini filtrati ${scopeTxt} verranno eliminati definitivamente. Procedere comunque?`;
     }
+    const dlgTitle = isAll
+      ? "Elimina archivio spese"
+      : (targetReceipts.length === 1 ? "Elimina scontrino" : "Elimina scontrini filtrati");
     const yes = await confirmDialog(
-      "Elimina archivio spese",
+      dlgTitle,
       msg,
-      targets.length === 1 ? "Elimina" : "Elimina tutti",
+      isAll ? (targetReceipts.length === 1 ? "Elimina" : "Elimina tutti") : "Elimina",
       { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow(currentArchiveOpts()) }
     );
     if (!yes) return;
     const tx = state.db.transaction("archivedReceipts", "readwrite");
     const os = tx.objectStore("archivedReceipts");
-    if (isAll) {
-      os.clear();
-    } else {
-      for (const r of targets) os.delete(r.id);
-    }
+    for (const r of targetReceipts) os.delete(r.id);
     await txDone(tx);
     await openArchiveWindow({
       storeFilter: "all",
       searchField,
-      searchQuery: isAll ? "" : searchQuery,
+      searchQuery: "",
       dateFilter: { mode: "all", month: "", from: "", to: "", day: "" }
     });
     showToast(isAll
       ? "Archivio spese svuotato"
-      : (targets.length === 1 ? "Scontrino filtrato eliminato" : "Spese filtrate eliminate"));
+      : (targetReceipts.length === 1 ? "Scontrino filtrato eliminato" : "Scontrini filtrati eliminati"));
   });
 }
 
