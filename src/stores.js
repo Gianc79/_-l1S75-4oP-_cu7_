@@ -146,6 +146,14 @@ export async function renderStores() {
       rf.classList.toggle("dim", !sf.filterActive);
     }
     const filtered = sf.showAll ? ss : ss.filter((x) => x.id === state.storesSelectedFilter);
+    const delBtn = $("#delAllStoresBtn");
+    if (delBtn) {
+      delBtn.disabled = !filtered.length;
+      delBtn.classList.toggle("dim", !filtered.length);
+      const delLbl = sf.showAll ? "Elimina tutti i supermercati" : "Elimina il supermercato filtrato";
+      delBtn.title = delLbl;
+      delBtn.setAttribute("aria-label", delLbl);
+    }
     const countEl = $("#storesCount");
     if (countEl) countEl.textContent = String(filtered.length);
     const container = $("#storesListContainer");
@@ -243,8 +251,24 @@ export async function renderStores() {
   await paint(stg);
   $("#newStoreBtn").onclick = () => openStoreForm();
   $("#delAllStoresBtn").onclick = async () => {
-    if (!ss.length) return;
-    if (!await confirmDialog("Elimina tutti i supermercati", "Tutti i supermercati verranno rimossi definitivamente.<br>I relativi reparti ed articoli rimarranno regolarmente disponibili nel database.<br>Procedere comunque?", "Elimina tutti", { backdropClose: false })) return;
+    const sf = computeStoreFilter();
+    const targets = sf.showAll ? ss : ss.filter((x) => x.id === state.storesSelectedFilter);
+    if (!targets.length) return;
+    const isSingleFiltered = !sf.showAll && targets.length === 1;
+    let dlgTitle = "Elimina tutti i supermercati";
+    let dlgBtn = "Elimina tutti";
+    let dlgMsg = "Tutti i supermercati verranno rimossi definitivamente.<br>I relativi reparti ed articoli rimarranno regolarmente disponibili nel database.<br>Procedere comunque?";
+    if (isSingleFiltered) {
+      const stObj = targets[0];
+      const archivedCount = await countArchivedReceiptsForStore(stObj.id);
+      const archNote = archivedCount > 0
+        ? `<br>Presente in <strong>${archivedCount} ${archivedCount === 1 ? "spesa archiviata" : "spese archiviate"}</strong>, che verr${archivedCount === 1 ? "\xE0" : "anno"} comunque conservat${archivedCount === 1 ? "a" : "e"}.`
+        : "";
+      dlgTitle = "Elimina supermercato";
+      dlgBtn = "Elimina";
+      dlgMsg = `Il supermercato \u201C${esc(stObj.name)}\u201D verr\xE0 rimosso definitivamente.<br>I relativi reparti ed articoli rimarranno regolarmente disponibili nel database.${archNote}<br>Procedere comunque?`;
+    }
+    if (!await confirmDialog(dlgTitle, dlgMsg, dlgBtn, { backdropClose: false })) return;
     const [ps, pp, its, st0, allProds, allCats, receipts] = await Promise.all([
       getAll("productStores"),
       getAll("productPrices"),
@@ -256,32 +280,36 @@ export async function renderStores() {
     ]);
     const pMap = Object.fromEntries(allProds.map((x) => [x.id, x]));
     const cMap = Object.fromEntries(allCats.map((x) => [x.id, x]));
-    const sMap = Object.fromEntries(ss.map((x) => [x.id, x]));
-    const storeIdsSet = new Set(ss.map((x) => x.id));
+    const sMap = Object.fromEntries(targets.map((x) => [x.id, x]));
+    const storeIdsSet = new Set(targets.map((x) => x.id));
     const frozenReceipts = prepareFrozenReceiptsForStoreDelete(storeIdsSet, pMap, cMap, sMap, routes, receipts);
     const tx = state.db.transaction(["stores", "storeCategoryRoutes", "productStores", "productPrices", "shoppingListItems", "settings", "archivedReceipts", "tombstones"], "readwrite");
-    for (const r of routes) tx.objectStore("storeCategoryRoutes").delete(r.id);
-    ps.forEach((x) => tx.objectStore("productStores").delete(x.id));
-    pp.forEach((x) => tx.objectStore("productPrices").delete(x.id));
+    for (const r of routes) if (storeIdsSet.has(r.storeId)) tx.objectStore("storeCategoryRoutes").delete(r.id);
+    ps.forEach((x) => { if (storeIdsSet.has(x.storeId)) tx.objectStore("productStores").delete(x.id); });
+    pp.forEach((x) => { if (storeIdsSet.has(x.storeId)) tx.objectStore("productPrices").delete(x.id); });
     its.forEach((x) => {
-      if (x.storeId) {
+      if (x.storeId && storeIdsSet.has(x.storeId)) {
         x.storeId = null;
         x.updatedAt = now();
         tx.objectStore("shoppingListItems").put(x);
       }
     });
     for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
-    if (st0) tx.objectStore("settings").put({ ...st0, defaultStoreId: null });
-    for (const x of ss) {
+    if (st0 && st0.defaultStoreId && storeIdsSet.has(st0.defaultStoreId)) tx.objectStore("settings").put({ ...st0, defaultStoreId: null });
+    for (const x of targets) {
       tx.objectStore("stores").delete(x.id);
       tx.objectStore("tombstones").put({ id: uuid(), entityType: "store", entityId: x.id, deletedAt: now(), revision: Date.now() });
     }
     await txDone(tx);
-    state.selectedStores = ["all"];
+    if (storeIdsSet.has(state.selectedStore)) state.selectedStore = "all";
+    const nextSelStores = Array.isArray(state.selectedStores)
+      ? state.selectedStores.filter((sid) => sid === "all" || !storeIdsSet.has(sid))
+      : ["all"];
+    state.selectedStores = nextSelStores.length ? nextSelStores : ["all"];
     state.storesSelectedFilter = "all";
     localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
     await renderStores();
-    showToast("Supermercati eliminati");
+    showToast(targets.length === 1 ? "Supermercato eliminato" : "Supermercati eliminati");
   };
 }
 

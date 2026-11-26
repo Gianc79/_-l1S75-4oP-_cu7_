@@ -15,12 +15,21 @@ export async function renderCategories() {
   const counts = {};
   for (const pr of products) if (pr.categoryId) counts[pr.categoryId] = (counts[pr.categoryId] || 0) + 1;
   $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Reparti</h1><span class="title-count-badge" id="catsCount">${cats.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllCatsBtn" aria-label="Elimina tutti i reparti" title="Elimina tutti i reparti">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi reparti.<br>Per eliminare un singolo reparto, scorri il relativo riquadro verso destra.<br>In ogni reparto andranno poi aggiunti i relativi articoli.")}<div class="sticky-action-wrap list-sticky-btn-wrap"><button class="btn btn-primary btn-block" id="newCategoryBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo reparto</span></button></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="catsSearch" maxlength="25" placeholder="Cerca reparto\u2026" aria-label="Cerca reparto" autocomplete="off" autocapitalize="characters"></div></div><div id="categoriesList"></div>`;
-  const list = $("#categoriesList"), inp = $("#catsSearch");
+  const list = $("#categoriesList"), inp = $("#catsSearch"), d = $("#delAllCatsBtn");
   forceUppercaseInput(inp);
+  const filteredCats = () => filterBySearch(cats, state.catsSearchQuery, (c) => c.name);
   const paint = () => {
     if (inp.value.length > 25) inp.value = inp.value.slice(0, 25);
     state.catsSearchQuery = inp.value;
-    const filtered = filterBySearch(cats, state.catsSearchQuery, (c) => c.name);
+    const filtered = filteredCats();
+    const hasQuery = !!state.catsSearchQuery.trim();
+    if (d) {
+      d.disabled = !filtered.length;
+      d.classList.toggle("dim", !filtered.length);
+      const delLbl = hasQuery ? "Elimina i reparti filtrati" : "Elimina tutti i reparti";
+      d.title = delLbl;
+      d.setAttribute("aria-label", delLbl);
+    }
     $("#catsCount").textContent = String(filtered.length);
     list.innerHTML = filtered.length ? filtered.map((c) => {
       const n = counts[c.id] || 0;
@@ -65,33 +74,37 @@ export async function renderCategories() {
   attachSearchClear(inp, paint);
   paint();
   $("#newCategoryBtn").onclick = () => openCategoryForm(null);
-  {
-    const d = $("#delAllCatsBtn");
-    if (!cats.length) {
-      d.disabled = true;
-      d.classList.add("dim");
+  d.onclick = async () => {
+    const targets = filteredCats();
+    if (!targets.length) return;
+    const qTrim = String(state.catsSearchQuery || "").trim();
+    const isFiltered = !!qTrim;
+    const dlgTitle = isFiltered ? (targets.length === 1 ? "Elimina reparto" : "Elimina reparti") : "Elimina tutti i reparti";
+    const dlgBtn = isFiltered ? "Elimina" : "Elimina tutti";
+    const dlgMsg = !isFiltered
+      ? "Tutti i reparti verranno rimossi definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D.<br>Procedere comunque?"
+      : (targets.length === 1
+        ? `Il reparto \u201C${esc(targets[0].name)}\u201D verr\xE0 rimosso definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D.<br>Procedere comunque?`
+        : `I ${targets.length} reparti filtrati (ricerca \u201C${esc(qTrim)}\u201D) verranno rimossi definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D.<br>Procedere comunque?`);
+    if (!await confirmDialog(dlgTitle, dlgMsg, dlgBtn, { backdropClose: false })) return;
+    const [prods, routes, receipts] = await Promise.all([getAll("products"), getAll("storeCategoryRoutes"), getAll("archivedReceipts")]);
+    const pMap = Object.fromEntries(prods.map((x) => [x.id, x]));
+    const cMap = Object.fromEntries(cats.map((x) => [x.id, x]));
+    const catIds = new Set(targets.map((c) => c.id));
+    const frozenReceipts = prepareFrozenReceiptsForCategoryDelete(catIds, pMap, cMap, receipts);
+    const tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "archivedReceipts", "tombstones"], "readwrite");
+    for (const c of targets) {
+      tx.objectStore("categories").delete(c.id);
+      tx.objectStore("tombstones").put({ id: uuid(), entityType: "category", entityId: c.id, deletedAt: now(), revision: Date.now() });
     }
-    d.onclick = async () => {
-      if (!await confirmDialog("Elimina tutti i reparti", "Tutti i reparti verranno rimossi definitivamente.<br>Gli articoli corrispondenti rimarranno disponibili nel database come \u201CSenza reparto\u201D. Procedere comunque?", "Elimina tutti", { backdropClose: false })) return;
-      const [prods, routes, receipts] = await Promise.all([getAll("products"), getAll("storeCategoryRoutes"), getAll("archivedReceipts")]);
-      const pMap = Object.fromEntries(prods.map((x) => [x.id, x]));
-      const cMap = Object.fromEntries(cats.map((x) => [x.id, x]));
-      const catIds = new Set(cats.map((c) => c.id));
-      const frozenReceipts = prepareFrozenReceiptsForCategoryDelete(catIds, pMap, cMap, receipts);
-      const tx = state.db.transaction(["categories", "products", "storeCategoryRoutes", "archivedReceipts", "tombstones"], "readwrite");
-      for (const c of cats) {
-        tx.objectStore("categories").delete(c.id);
-        tx.objectStore("tombstones").put({ id: uuid(), entityType: "category", entityId: c.id, deletedAt: now(), revision: Date.now() });
-      }
-      for (const x of prods) if (x.categoryId) tx.objectStore("products").put({ ...x, categoryId: null, updatedAt: now() });
-      for (const r of routes) tx.objectStore("storeCategoryRoutes").delete(r.id);
-      for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
-      await txDone(tx);
-      state.catsSearchQuery = "";
-      await renderCategories();
-      showToast("Reparti eliminati");
-    };
-  }
+    for (const x of prods) if (x.categoryId && catIds.has(x.categoryId)) tx.objectStore("products").put({ ...x, categoryId: null, updatedAt: now() });
+    for (const r of routes) if (catIds.has(r.categoryId)) tx.objectStore("storeCategoryRoutes").delete(r.id);
+    for (const fr of frozenReceipts) tx.objectStore("archivedReceipts").put(fr);
+    await txDone(tx);
+    state.catsSearchQuery = "";
+    await renderCategories();
+    showToast(targets.length === 1 ? "Reparto eliminato" : "Reparti eliminati");
+  };
 }
 
 export async function createCategoryRecord(name) {

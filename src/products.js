@@ -53,12 +53,17 @@ export async function renderProducts() {
   $("#appMain").innerHTML = `<div class="toolbar"><div class="title-row"><h1>Articoli</h1><span class="title-count-badge" id="productsCount">${products.length}</span>${infoBtn}</div><button type="button" class="header-icon trash-mini" id="delAllProductsBtn" aria-label="Elimina tutti gli articoli" title="Elimina tutti gli articoli">${TRASH_OFFICE}</button></div>${infoPop("Crea e gestisci il database dei tuoi articoli.<br>Per eliminare un singolo articolo, scorri il relativo riquadro verso destra.")}<div class="sticky-action-wrap"><button class="btn btn-primary btn-block" id="newProductBtn">${SVG_CIRCLED_PLUS}<span>Crea un nuovo articolo</span></button></div><div class="prod-filters-box prod-filters-split"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear" id="resetProdFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid">${singleFilterHtml({ id: "prodFilterStore", allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: pv.store, allDisabled: curOpts.allStoresDisabled, searchMaxLength: 20, searchUppercase: true })}${singleFilterHtml({ id: "prodFilterCat", allLabel: "Tutti i reparti", options: curOpts.catOpts, selectedValue: pv.cat, allDisabled: curOpts.allCatsDisabled, searchMaxLength: 25, searchUppercase: true })}</div></div><div class="products-search-sticky"><div class="search-wrap"><input type="search" class="search-input" id="productsSearch" maxlength="25" placeholder="Cerca articolo o marca..." aria-label="Cerca articolo o marca" autocomplete="off"></div></div><div id="productsList"></div>`;
   const d = $("#delAllProductsBtn");
   const scopeOf = () => products.filter((x) => matchesStore(x, pv.store) && matchesCat(x, pv.cat));
+  const filteredOf = () => filterBySearch(scopeOf(), pv.q, productSearchText);
   const paint = () => {
     curOpts = computeOpts();
     pv.q = $("#productsSearch").value;
-    const scope = scopeOf(), filtered = filterBySearch(scope, pv.q, productSearchText);
-    d.disabled = !scope.length;
-    d.classList.toggle("dim", !scope.length);
+    const filtered = filteredOf();
+    const isAnyFilter = !curOpts.showAllCats || !curOpts.showAllStores || !!pv.q.trim();
+    d.disabled = !filtered.length;
+    d.classList.toggle("dim", !filtered.length);
+    const delLbl = isAnyFilter ? "Elimina gli articoli filtrati" : "Elimina tutti gli articoli";
+    d.title = delLbl;
+    d.setAttribute("aria-label", delLbl);
     updateSingleFilterUI("prodFilterStore", { allLabel: "Tutti i supermercati", options: curOpts.storeOpts, selectedValue: pv.store, allDisabled: curOpts.allStoresDisabled });
     updateSingleFilterUI("prodFilterCat", { allLabel: "Tutti i reparti", options: curOpts.catOpts, selectedValue: pv.cat, allDisabled: curOpts.allCatsDisabled });
     {
@@ -146,25 +151,37 @@ export async function renderProducts() {
     paint();
   };
   d.onclick = async () => {
-    const scope = scopeOf();
-    if (!scope.length) return;
+    const targets = filteredOf();
+    if (!targets.length) return;
+    const qTrim = String(pv.q || "").trim();
+    const isFiltered = !curOpts.showAllCats || !curOpts.showAllStores || !!qTrim;
+    let dlgTitle = isFiltered ? (targets.length === 1 ? "Elimina articolo" : "Elimina articoli") : "Elimina articoli";
     let msg = "Tutti gli articoli del database verranno rimossi definitivamente.<br>Procedere comunque?";
-    if (!curOpts.showAllCats || !curOpts.showAllStores) {
-      const parts = [];
-      if (!curOpts.showAllCats) {
-        const cid = pv.cat;
-        const cn = cid === "__none__" ? "Senza reparto" : (catList.find((c) => c.id === cid) || {}).name;
-        parts.push(cid === "__none__" ? "senza reparto" : `del reparto \u201C${esc(cn)}\u201D`);
+    if (isFiltered) {
+      if (targets.length === 1) {
+        const dpOne = productDisplayParts(targets[0]);
+        const oneLbl = [dpOne.title, dpOne.brand].filter(Boolean).join(" ") || targets[0].name;
+        msg = `L\u2019articolo \u201C${esc(oneLbl)}\u201D verr\xE0 rimosso definitivamente dal database.<br>Procedere comunque?`;
+      } else {
+        const parts = [];
+        if (!curOpts.showAllCats) {
+          const cid = pv.cat;
+          const cn = cid === "__none__" ? "Senza reparto" : (catList.find((c) => c.id === cid) || {}).name;
+          parts.push(cid === "__none__" ? "senza reparto" : `del reparto \u201C${esc(cn)}\u201D`);
+        }
+        if (!curOpts.showAllStores) {
+          const sid = pv.store;
+          const sn = (stores2.find((x) => x.id === sid) || {}).name;
+          parts.push(sid === "__none__" ? "senza supermercato" : `del supermercato \u201C${esc(sn)}\u201D`);
+        }
+        if (qTrim) {
+          parts.push(`corrispondenti alla ricerca \u201C${esc(qTrim)}\u201D`);
+        }
+        msg = `I ${targets.length} articoli ${parts.join(" ")} verranno rimossi definitivamente.<br>Procedere comunque?`;
       }
-      if (!curOpts.showAllStores) {
-        const sid = pv.store;
-        const sn = (stores2.find((x) => x.id === sid) || {}).name;
-        parts.push(sid === "__none__" ? "senza supermercato" : `del supermercato \u201C${esc(sn)}\u201D`);
-      }
-      msg = "Tutti gli articoli " + parts.join(" ") + " verranno rimossi definitivamente.<br>Procedere comunque?";
     }
-    if (!await confirmDialog("Elimina articoli", msg, "Elimina", { backdropClose: false })) return;
-    const ids = new Set(scope.map((x) => x.id));
+    if (!await confirmDialog(dlgTitle, msg, "Elimina", { backdropClose: false })) return;
+    const ids = new Set(targets.map((x) => x.id));
     const [ps, pp, its, allCats, receipts] = await Promise.all([
       getAll("productStores"),
       getAll("productPrices"),
@@ -172,11 +189,11 @@ export async function renderProducts() {
       getAll("categories"),
       getAll("archivedReceipts")
     ]);
-    const pMap = Object.fromEntries(scope.map((x) => [x.id, x]));
+    const pMap = Object.fromEntries(targets.map((x) => [x.id, x]));
     const cMap = Object.fromEntries(allCats.map((c) => [c.id, c]));
     const frozenReceipts = prepareFrozenReceiptsForProductDelete(ids, pMap, cMap, receipts);
     const tx = state.db.transaction(["products", "productStores", "productPrices", "shoppingListItems", "archivedReceipts", "tombstones"], "readwrite");
-    for (const x of scope) {
+    for (const x of targets) {
       tx.objectStore("products").delete(x.id);
       tx.objectStore("tombstones").put({ id: uuid(), entityType: "product", entityId: x.id, deletedAt: now(), revision: Date.now() });
     }
@@ -193,7 +210,7 @@ export async function renderProducts() {
     await txDone(tx);
     pv.q = "";
     await renderProducts();
-    showToast("Articoli eliminati");
+    showToast(targets.length === 1 ? "Articolo eliminato" : "Articoli eliminati");
   };
   paint();
   $("#newProductBtn").addEventListener("click", () => openProductForm(null, "products"));
