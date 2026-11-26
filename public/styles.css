@@ -2193,14 +2193,14 @@ input[type=search].search-input:placeholder-shown,
 .archive-sticky-stack .archive-filter-bar{position:relative;z-index:4}
 .archive-sticky-stack .archive-sticky-banner{margin:0;border:1.5px solid #0e355c;border-radius:16px 16px 0 0;position:relative;z-index:2}
 .saved-list-section.archive-list-body{margin-top:0;border-top:0;border-radius:0 0 16px 16px;padding-top:10px}
-/* Finestra Archivio spese: layout filtri compatto su 3 righe + casella ricerca smart (Nome spesa / Marca / Nome articolo) */
-.archive-filter-top-row{grid-template-columns:minmax(0,1fr) 36px;gap:6px}
+/* Finestra Archivio spese: intestazione FILTRA PER con reset + 3 righe a tutta larghezza (Date / Supermercati / Ricerca) */
+.archive-filter-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px;margin-bottom:0}
 .archive-filter-bar .store-filter-trigger{min-height:36px;height:36px;padding:4px 9px;gap:6px;font-size:13px;border-radius:10px}
 .archive-filter-bar .store-filter-chevron{width:17px;height:17px;margin-left:2px;flex:0 0 17px}
 .archive-date-trigger-content{gap:6px}
 .archive-date-trigger-ico,.archive-date-trigger-ico .archive-cal-svg{width:18px;height:18px;flex:0 0 18px}
-.archive-filter-clear{width:36px;min-width:36px;height:36px;border-radius:10px;flex:0 0 36px}
-.archive-filter-clear svg{width:20px;height:20px}
+.archive-filter-clear{width:30px;min-width:30px;height:30px;border-radius:8.5px;flex:0 0 30px}
+.archive-filter-clear svg{width:18px;height:18px}
 .archive-search-combo{position:relative;display:flex;align-items:stretch;height:36px;background:#ffffff;border:1.5px solid #bfcdd6;border-radius:10px;box-shadow:inset 0 1px 0 #fff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.08);transition:border-color .15s ease,box-shadow .15s ease}
 .archive-search-combo:focus-within,.archive-search-combo.has-query{border-color:#174f86;box-shadow:0 0 0 2px rgba(23,79,134,.14),0 2px 0 #8fb4d6}
 .archive-search-scope-wrap{position:relative;flex:0 0 auto;display:flex;height:100%}

@@ -984,8 +984,8 @@ export async function openArchiveWindow(opts = {}) {
 
   const filterBarHtml = receipts.length ? `
     <div class="archive-filter-bar">
-      <div class="archive-filter-top-row">
-        ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey, searchMaxLength: 20, searchUppercase: true })}
+      <div class="archive-filter-head">
+        <span class="prod-filters-title">Filtra per</span>
         <button type="button" class="filter-clear archive-filter-clear dim" id="resetArchiveFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri" disabled>${SVG_FILTER_CLEAR}</button>
       </div>
       <div class="store-filter-wrap archive-date-filter-wrap" id="archiveDateFilterWrap">
@@ -1030,6 +1030,7 @@ export async function openArchiveWindow(opts = {}) {
           </div>
         </div>
       </div>
+      ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey, searchMaxLength: 20, searchUppercase: true })}
       <div class="archive-search-combo${searchQuery.trim() ? " has-query" : ""}" id="archiveSearchCombo">
         <div class="store-filter-wrap archive-search-scope-wrap" id="archiveSearchScopeWrap">
           <button type="button" class="store-filter-trigger archive-search-scope-btn" id="archiveSearchScopeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Cerca per: ${esc(curSearchMeta.label)}" title="Scegli il campo di ricerca">
