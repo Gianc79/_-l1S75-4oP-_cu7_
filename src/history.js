@@ -55,7 +55,11 @@ export async function loadSavedList(sl, opts = {}) {
 }
 
 export async function openSavedListsWindow(mode) {
-  const lists = (await getAll("savedLists")).sort((a, b) => a.name.localeCompare(b.name, "it", { sensitivity: "base" })), curId = await currentSavedListId(), prods = new Set((await getAll("products")).map((x) => x.id));
+  const listTs = (l) => {
+    const t = Date.parse(l?.updatedAt || l?.createdAt || "");
+    return Number.isFinite(t) ? t : 0;
+  };
+  const lists = (await getAll("savedLists")).sort((a, b) => (listTs(b) - listTs(a)) || a.name.localeCompare(b.name, "it", { sensitivity: "base" })), curId = await currentSavedListId(), prods = new Set((await getAll("products")).map((x) => x.id));
   const save = mode === "save", cnt = (l) => l.items.filter((i) => prods.has(i.productId)).length;
   const rows = lists.map((l) => {
     const n = cnt(l), inUse = l.id === curId, dt = new Date(l.updatedAt || l.createdAt).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -108,7 +112,7 @@ export async function openSavedListsWindow(mode) {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
     const infoTxt = save
-      ? "Scrivi un nome (o seleziona una lista esistente per sovrascriverla) e premi Salva.<br>Per eliminare una singola lista, scorri il relativo riquadro verso destra."
+      ? `Scrivi un nome (o seleziona una lista esistente per sovrascriverla) e premi Salva: si possono salvare fino a ${MAX_SAVED_LISTS} liste.<br>Per eliminare una singola lista, scorri il relativo riquadro verso destra.`
       : "Seleziona una lista dall\u2019elenco.<br>Per eliminare una singola lista, scorri il relativo riquadro verso destra.";
     hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>${infoTxt}</div>`);
   }

@@ -1,6 +1,6 @@
 // Archivio spese (dati economici immutabili, anagrafica e percorso dinamici), aggiunte/detrazioni cassa e riepilogo risparmio
 import { state } from "./state.js";
-import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
+import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
 import { $, assignUnit, displayUnit, esc, eurosFromInput, extractProductFields, fmtQtyUnit, formatProductNetParts, formatTitleWithNetHtml, isConfezionePackaging, isPiecePackUnit, money, moneyPerUnit, norm, now, parsePackPieces, parseQty, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
@@ -33,6 +33,25 @@ function todayIsoDate() {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+const IT_MONTHS = [
+  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+];
+
+function receiptIsoDate(r) {
+  if (typeof r?.purchaseDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.purchaseDate)) return r.purchaseDate;
+  if (r?.archivedAt) {
+    const dt = new Date(r.archivedAt);
+    if (!Number.isNaN(dt.getTime())) {
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, "0");
+      const d = String(dt.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return "";
 }
 
 function fmtIsoDate(isoDate, fallbackIsoTs) {
@@ -792,6 +811,73 @@ export async function openArchiveWindow(opts = {}) {
 
   let selectedStoreKey = opts.storeFilter || "all";
   let searchQuery = opts.searchQuery || "";
+  const initDf = opts.dateFilter && typeof opts.dateFilter === "object" ? opts.dateFilter : {};
+  let dateFilter = {
+    mode: ["all", "month", "range", "day"].includes(initDf.mode) ? initDf.mode : "all",
+    month: typeof initDf.month === "string" && /^\d{4}-\d{2}$/.test(initDf.month) ? initDf.month : "",
+    from: typeof initDf.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(initDf.from) ? initDf.from : "",
+    to: typeof initDf.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(initDf.to) ? initDf.to : "",
+    day: typeof initDf.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(initDf.day) ? initDf.day : ""
+  };
+
+  const latestReceiptIso = receipts.length ? (receiptIsoDate(receipts[0]) || todayIsoDate()) : todayIsoDate();
+  const availableYearsSet = new Set([String(new Date().getFullYear())]);
+  for (const r of receipts) {
+    const y = receiptIsoDate(r).slice(0, 4);
+    if (/^\d{4}$/.test(y)) availableYearsSet.add(y);
+  }
+  if (dateFilter.month && /^\d{4}-\d{2}$/.test(dateFilter.month)) availableYearsSet.add(dateFilter.month.slice(0, 4));
+  const availableYears = [...availableYearsSet].sort((a, b) => b.localeCompare(a));
+
+  const isDateFilterActive = () => {
+    if (dateFilter.mode === "month") return /^\d{4}-\d{2}$/.test(dateFilter.month);
+    if (dateFilter.mode === "day") return /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.day);
+    if (dateFilter.mode === "range") return /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.from) || /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.to);
+    return false;
+  };
+
+  const getDateFilterLabel = () => {
+    if (dateFilter.mode === "month" && /^\d{4}-\d{2}$/.test(dateFilter.month)) {
+      const [y, m] = dateFilter.month.split("-");
+      const mName = IT_MONTHS[Number(m) - 1] || m;
+      return `${mName} ${y}`;
+    }
+    if (dateFilter.mode === "day" && /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.day)) {
+      return fmtIsoDate(dateFilter.day);
+    }
+    if (dateFilter.mode === "range") {
+      const hasFrom = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.from);
+      const hasTo = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.to);
+      if (hasFrom && hasTo) {
+        const [lo, hi] = dateFilter.from <= dateFilter.to ? [dateFilter.from, dateFilter.to] : [dateFilter.to, dateFilter.from];
+        return `${fmtIsoDate(lo)} \u2013 ${fmtIsoDate(hi)}`;
+      }
+      if (hasFrom) return `Dal ${fmtIsoDate(dateFilter.from)}`;
+      if (hasTo) return `Fino al ${fmtIsoDate(dateFilter.to)}`;
+    }
+    return "Tutte le date";
+  };
+
+  const matchesDateFilter = (r) => {
+    if (!isDateFilterActive()) return true;
+    const iso = receiptIsoDate(r);
+    if (!iso) return false;
+    if (dateFilter.mode === "month") return iso.startsWith(dateFilter.month);
+    if (dateFilter.mode === "day") return iso === dateFilter.day;
+    if (dateFilter.mode === "range") {
+      const hasFrom = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.from);
+      const hasTo = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter.to);
+      if (hasFrom && hasTo) {
+        const [lo, hi] = dateFilter.from <= dateFilter.to ? [dateFilter.from, dateFilter.to] : [dateFilter.to, dateFilter.from];
+        return iso >= lo && iso <= hi;
+      }
+      if (hasFrom) return iso >= dateFilter.from;
+      if (hasTo) return iso <= dateFilter.to;
+    }
+    return true;
+  };
+
+  const currentArchiveOpts = () => ({ storeFilter: selectedStoreKey, searchQuery, dateFilter: { ...dateFilter } });
 
   const receiptStoreKey = (r) => {
     const rs = resolveReceiptStore(r, sMap);
@@ -837,10 +923,65 @@ export async function openArchiveWindow(opts = {}) {
   });
   const allStoresLabel = "Tutti i supermercati";
 
+  const initMonthParts = (dateFilter.month || latestReceiptIso.slice(0, 7)).split("-");
+  const initMonthYear = initMonthParts[0] || availableYears[0];
+  const initMonthNum = initMonthParts[1] || "01";
+  const monthOptsHtml = IT_MONTHS.map((name, idx) => {
+    const mm = String(idx + 1).padStart(2, "0");
+    return `<option value="${mm}"${mm === initMonthNum ? " selected" : ""}>${name}</option>`;
+  }).join("");
+  const yearOptsHtml = availableYears.map((y) => `<option value="${y}"${y === initMonthYear ? " selected" : ""}>${y}</option>`).join("");
+
   const filterBarHtml = receipts.length ? `
     <div class="archive-filter-sticky">
       <div class="archive-filter-bar">
-        ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey })}
+        <div class="archive-filter-top-row">
+          ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey })}
+          <button type="button" class="filter-clear archive-filter-clear dim" id="resetArchiveFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri" disabled>${SVG_FILTER_CLEAR}</button>
+        </div>
+        <div class="store-filter-wrap archive-date-filter-wrap" id="archiveDateFilterWrap">
+          <button type="button" class="store-filter-trigger archive-date-trigger${isDateFilterActive() ? " has-filter" : ""}" id="archiveDateFilterTrigger" aria-haspopup="dialog" aria-expanded="false">
+            <span class="archive-date-trigger-content">
+              <span class="archive-date-trigger-ico" aria-hidden="true">${CALENDAR_ICON_SVG}</span>
+              <span id="archiveDateFilterSummary">${esc(getDateFilterLabel())}</span>
+            </span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:18px;height:18px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="store-filter-menu archive-date-filter-menu" id="archiveDateFilterMenu" role="dialog" aria-label="Filtra spese per data" hidden>
+            <div class="archive-date-modes" role="tablist" aria-label="Tipo di filtro data">
+              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "all" ? " active" : ""}" data-date-mode="all" role="tab" aria-selected="${dateFilter.mode === "all" ? "true" : "false"}">Tutte</button>
+              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "month" ? " active" : ""}" data-date-mode="month" role="tab" aria-selected="${dateFilter.mode === "month" ? "true" : "false"}">Mese</button>
+              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "range" ? " active" : ""}" data-date-mode="range" role="tab" aria-selected="${dateFilter.mode === "range" ? "true" : "false"}">Intervallo</button>
+              <button type="button" class="archive-date-mode-btn${dateFilter.mode === "day" ? " active" : ""}" data-date-mode="day" role="tab" aria-selected="${dateFilter.mode === "day" ? "true" : "false"}">Giorno</button>
+            </div>
+            <div class="archive-date-panel" id="archiveDatePanelMonth"${dateFilter.mode === "month" ? "" : " hidden"}>
+              <div class="archive-date-month-grid">
+                <select id="archiveDateMonthSelect" class="archive-date-select" aria-label="Mese">${monthOptsHtml}</select>
+                <select id="archiveDateYearSelect" class="archive-date-select" aria-label="Anno">${yearOptsHtml}</select>
+              </div>
+            </div>
+            <div class="archive-date-panel" id="archiveDatePanelRange"${dateFilter.mode === "range" ? "" : " hidden"}>
+              <div class="archive-date-field-row">
+                <label for="archiveDateFrom">Dal</label>
+                <input id="archiveDateFrom" type="date" class="archive-date-input" value="${esc(dateFilter.from)}" aria-label="Data inizio intervallo">
+              </div>
+              <div class="archive-date-field-row">
+                <label for="archiveDateTo">Al</label>
+                <input id="archiveDateTo" type="date" class="archive-date-input" value="${esc(dateFilter.to)}" aria-label="Data fine intervallo">
+              </div>
+            </div>
+            <div class="archive-date-panel" id="archiveDatePanelDay"${dateFilter.mode === "day" ? "" : " hidden"}>
+              <div class="archive-date-field-row">
+                <label for="archiveDateDay">Data</label>
+                <input id="archiveDateDay" type="date" class="archive-date-input" value="${esc(dateFilter.day)}" aria-label="Data precisa">
+              </div>
+            </div>
+            <div class="archive-date-menu-foot" id="archiveDateMenuFoot"${dateFilter.mode === "all" ? " hidden" : ""}>
+              <button type="button" class="archive-date-reset-btn" id="archiveDateResetBtn">Tutte le date</button>
+              <button type="button" class="btn btn-primary btn-small archive-date-apply-btn" id="archiveDateApplyBtn">Applica</button>
+            </div>
+          </div>
+        </div>
         <input id="archiveSearchInput" type="search" class="search-input" maxlength="25" placeholder="Cerca articolo\u2026" value="${esc((searchQuery || "").slice(0, 25))}" autocomplete="off" aria-label="Cerca articolo nell'archivio spese">
       </div>
     </div>` : "";
@@ -886,18 +1027,70 @@ export async function openArchiveWindow(opts = {}) {
   const countBadge = $("#archiveCountBadge");
   const searchInp = $("#archiveSearchInput");
   const delAllBtn = $("#delAllArchivedBtn");
+  const resetFiltersBtn = $("#resetArchiveFilters");
+  const dateTrigger = $("#archiveDateFilterTrigger");
+  const dateSummary = $("#archiveDateFilterSummary");
+  const dateMenu = $("#archiveDateFilterMenu");
+  const dateMonthSel = $("#archiveDateMonthSelect");
+  const dateYearSel = $("#archiveDateYearSelect");
+  const dateFromInp = $("#archiveDateFrom");
+  const dateToInp = $("#archiveDateTo");
+  const dateDayInp = $("#archiveDateDay");
+  const datePanelMonth = $("#archiveDatePanelMonth");
+  const datePanelRange = $("#archiveDatePanelRange");
+  const datePanelDay = $("#archiveDatePanelDay");
+  const dateMenuFoot = $("#archiveDateMenuFoot");
 
-  const getStoreFilteredReceipts = () => receipts.filter((r) => selectedStoreKey === "all" || receiptStoreKey(r) === selectedStoreKey);
+  const getFilteredReceipts = () => receipts.filter((r) => (selectedStoreKey === "all" || receiptStoreKey(r) === selectedStoreKey) && matchesDateFilter(r));
+
+  const syncDateFilterUI = () => {
+    const active = isDateFilterActive();
+    if (dateTrigger) dateTrigger.classList.toggle("has-filter", active);
+    if (dateSummary) dateSummary.textContent = getDateFilterLabel();
+    if (dateMenu) {
+      dateMenu.querySelectorAll("[data-date-mode]").forEach((btn) => {
+        const sel = btn.dataset.dateMode === dateFilter.mode;
+        btn.classList.toggle("active", sel);
+        btn.setAttribute("aria-selected", String(sel));
+      });
+    }
+    if (datePanelMonth) datePanelMonth.hidden = dateFilter.mode !== "month";
+    if (datePanelRange) datePanelRange.hidden = dateFilter.mode !== "range";
+    if (datePanelDay) datePanelDay.hidden = dateFilter.mode !== "day";
+    if (dateMenuFoot) dateMenuFoot.hidden = dateFilter.mode === "all";
+    if (dateFilter.mode === "month" && /^\d{4}-\d{2}$/.test(dateFilter.month)) {
+      const [y, m] = dateFilter.month.split("-");
+      if (dateMonthSel) dateMonthSel.value = m;
+      if (dateYearSel) dateYearSel.value = y;
+    }
+    if (dateFromInp && dateFromInp.value !== dateFilter.from) dateFromInp.value = dateFilter.from;
+    if (dateToInp && dateToInp.value !== dateFilter.to) dateToInp.value = dateFilter.to;
+    if (dateDayInp && dateDayInp.value !== dateFilter.day) dateDayInp.value = dateFilter.day;
+  };
+
+  const syncResetBtn = () => {
+    if (!resetFiltersBtn) return;
+    const hasAny = selectedStoreKey !== "all" || isDateFilterActive() || !!searchQuery.trim();
+    resetFiltersBtn.disabled = !hasAny;
+    resetFiltersBtn.classList.toggle("dim", !hasAny);
+  };
 
   const paintReceipts = () => {
     const q = searchNorm(searchQuery);
-    const storeFiltered = getStoreFilteredReceipts();
+    const filtered = getFilteredReceipts();
     const selStoreLabel = storeEntryByKey.get(selectedStoreKey)?.displayName || selectedStoreKey;
+    const dateActive = isDateFilterActive();
+    syncResetBtn();
     if (delAllBtn) {
-      delAllBtn.disabled = storeFiltered.length === 0;
-      const delLabel = selectedStoreKey === "all"
-        ? "Elimina tutte le spese archiviate"
-        : `Elimina le spese archiviate di ${selStoreLabel}`;
+      delAllBtn.disabled = filtered.length === 0;
+      let delLabel = "Elimina tutte le spese archiviate";
+      if (selectedStoreKey !== "all" && dateActive) {
+        delLabel = `Elimina le spese archiviate di ${selStoreLabel} (${getDateFilterLabel()})`;
+      } else if (selectedStoreKey !== "all") {
+        delLabel = `Elimina le spese archiviate di ${selStoreLabel}`;
+      } else if (dateActive) {
+        delLabel = `Elimina le spese archiviate (${getDateFilterLabel()})`;
+      }
       delAllBtn.title = delLabel;
       delAllBtn.setAttribute("aria-label", delLabel);
     }
@@ -905,7 +1098,7 @@ export async function openArchiveWindow(opts = {}) {
     if (q) {
       const tokens = q.split(" ").filter(Boolean);
       const matchedItems = [];
-      for (const r of storeFiltered) {
+      for (const r of filtered) {
         for (const it of (r.items || [])) {
           const resolved = resolveReceiptItem(it, pMap, cMap);
           const itemHay = searchNorm(`${resolved.resolvedTitle || ""} ${resolved.resolvedBrand || ""}`);
@@ -936,20 +1129,20 @@ export async function openArchiveWindow(opts = {}) {
         row.addEventListener("click", () => {
           state.currentModal = null;
           state.currentModalKeep = false;
-          openReceiptDetailWindow(row.dataset.openReceipt, { storeFilter: selectedStoreKey, searchQuery });
+          openReceiptDetailWindow(row.dataset.openReceipt, currentArchiveOpts());
         });
       });
       return;
     }
 
-    if (countBadge) countBadge.textContent = String(storeFiltered.length);
+    if (countBadge) countBadge.textContent = String(filtered.length);
 
-    if (!storeFiltered.length) {
+    if (!filtered.length) {
       container.innerHTML = `<div class="empty">${receipts.length ? "Nessuno scontrino corrisponde ai filtri." : "Nessuna spesa archiviata.<br>Tocca \u201CArchivia spesa corrente\u201D per salvare il tuo primo scontrino."}</div>`;
       return;
     }
 
-    container.innerHTML = storeFiltered.map((r) => {
+    container.innerHTML = filtered.map((r) => {
       const t = computeReceiptTotals(r);
       const dt = fmtIsoDate(r.purchaseDate, r.archivedAt);
       const noteText = r.note || "";
@@ -973,7 +1166,7 @@ export async function openArchiveWindow(opts = {}) {
         if (row.dataset.swiping === "1") return;
         state.currentModal = null;
         state.currentModalKeep = false;
-        openReceiptDetailWindow(row.dataset.receiptRow, { storeFilter: selectedStoreKey, searchQuery });
+        openReceiptDetailWindow(row.dataset.receiptRow, currentArchiveOpts());
       });
     });
 
@@ -986,15 +1179,16 @@ export async function openArchiveWindow(opts = {}) {
         "Elimina scontrino",
         `Lo scontrino di <strong>${esc(rs.name || "Senza supermercato")}</strong> del ${dt} verr\xE0 eliminato definitivamente.<br>Procedere comunque?`,
         "Elimina",
-        { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow({ storeFilter: selectedStoreKey, searchQuery }) }
+        { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow(currentArchiveOpts()) }
       );
       if (!yes) return false;
       await delOne("archivedReceipts", rec.id);
-      await openArchiveWindow({ storeFilter: selectedStoreKey, searchQuery });
+      await openArchiveWindow(currentArchiveOpts());
       showToast("Scontrino eliminato");
     });
   };
 
+  syncDateFilterUI();
   paintReceipts();
 
   $("#archiveCurrentBtn")?.addEventListener("click", () => {
@@ -1013,6 +1207,116 @@ export async function openArchiveWindow(opts = {}) {
     });
   }
 
+  const closeDateMenu = () => {
+    if (dateMenu) dateMenu.hidden = true;
+    dateTrigger?.setAttribute("aria-expanded", "false");
+  };
+
+  if (dateTrigger && dateMenu) {
+    dateTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = dateMenu.hidden;
+      document.querySelectorAll(".custom-dropdown-menu").forEach((m) => {
+        m.hidden = true;
+        m.classList.remove("drop-up");
+      });
+      document.querySelectorAll(".custom-dropdown-trigger").forEach((t) => t.setAttribute("aria-expanded", "false"));
+      document.querySelectorAll(".store-filter-menu").forEach((m) => {
+        if (m !== dateMenu) m.hidden = true;
+      });
+      document.querySelectorAll(".store-filter-trigger").forEach((t) => {
+        if (t !== dateTrigger) t.setAttribute("aria-expanded", "false");
+      });
+      dateMenu.hidden = !willOpen;
+      dateTrigger.setAttribute("aria-expanded", String(willOpen));
+    });
+    dateMenu.addEventListener("click", (e) => e.stopPropagation());
+
+    dateMenu.querySelectorAll("[data-date-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const nextMode = btn.dataset.dateMode || "all";
+        dateFilter.mode = nextMode;
+        if (nextMode === "all") {
+          dateFilter.month = "";
+          dateFilter.from = "";
+          dateFilter.to = "";
+          dateFilter.day = "";
+          syncDateFilterUI();
+          paintReceipts();
+          closeDateMenu();
+          return;
+        }
+        if (nextMode === "month") {
+          const y = dateYearSel?.value || latestReceiptIso.slice(0, 4);
+          const m = dateMonthSel?.value || latestReceiptIso.slice(5, 7);
+          dateFilter.month = `${y}-${m}`;
+        } else if (nextMode === "day" && !dateFilter.day) {
+          dateFilter.day = latestReceiptIso;
+        }
+        syncDateFilterUI();
+        paintReceipts();
+      });
+    });
+
+    const syncMonthFromSelects = () => {
+      if (!dateYearSel || !dateMonthSel) return;
+      dateFilter.mode = "month";
+      dateFilter.month = `${dateYearSel.value}-${dateMonthSel.value}`;
+      syncDateFilterUI();
+      paintReceipts();
+    };
+    dateMonthSel?.addEventListener("change", syncMonthFromSelects);
+    dateYearSel?.addEventListener("change", syncMonthFromSelects);
+
+    const syncRangeFromInputs = () => {
+      dateFilter.mode = "range";
+      dateFilter.from = (dateFromInp?.value || "").trim();
+      dateFilter.to = (dateToInp?.value || "").trim();
+      syncDateFilterUI();
+      paintReceipts();
+    };
+    dateFromInp?.addEventListener("change", syncRangeFromInputs);
+    dateFromInp?.addEventListener("input", syncRangeFromInputs);
+    dateToInp?.addEventListener("change", syncRangeFromInputs);
+    dateToInp?.addEventListener("input", syncRangeFromInputs);
+
+    const syncDayFromInput = () => {
+      dateFilter.mode = "day";
+      dateFilter.day = (dateDayInp?.value || "").trim();
+      syncDateFilterUI();
+      paintReceipts();
+    };
+    dateDayInp?.addEventListener("change", syncDayFromInput);
+    dateDayInp?.addEventListener("input", syncDayFromInput);
+
+    $("#archiveDateResetBtn")?.addEventListener("click", () => {
+      dateFilter = { mode: "all", month: "", from: "", to: "", day: "" };
+      syncDateFilterUI();
+      paintReceipts();
+      closeDateMenu();
+    });
+    $("#archiveDateApplyBtn")?.addEventListener("click", () => {
+      closeDateMenu();
+    });
+  }
+
+  resetFiltersBtn?.addEventListener("click", () => {
+    selectedStoreKey = "all";
+    dateFilter = { mode: "all", month: "", from: "", to: "", day: "" };
+    searchQuery = "";
+    updateSingleFilterUI("archiveStoreFilter", { allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: "all" });
+    syncDateFilterUI();
+    closeDateMenu();
+    document.querySelectorAll(".archive-filter-bar .store-filter-menu").forEach((m) => { m.hidden = true; });
+    document.querySelectorAll(".archive-filter-bar .store-filter-trigger").forEach((t) => t.setAttribute("aria-expanded", "false"));
+    if (searchInp) {
+      searchInp.value = "";
+      searchInp.dispatchEvent(new Event("input"));
+    } else {
+      paintReceipts();
+    }
+  });
+
   if (searchInp) {
     attachSearchClear(searchInp, () => {
       searchQuery = "";
@@ -1026,22 +1330,31 @@ export async function openArchiveWindow(opts = {}) {
   }
 
   $("#delAllArchivedBtn")?.addEventListener("click", async () => {
-    const targets = getStoreFilteredReceipts();
+    const targets = getFilteredReceipts();
     if (!targets.length) return;
-    const isAll = selectedStoreKey === "all";
+    const dateActive = isDateFilterActive();
+    const isAll = selectedStoreKey === "all" && !dateActive;
     const selStoreLabel = storeEntryByKey.get(selectedStoreKey)?.displayName || selectedStoreKey;
-    const msg = isAll
-      ? (targets.length === 1
+    const dateLbl = getDateFilterLabel();
+    let msg;
+    if (isAll) {
+      msg = targets.length === 1
         ? "L'unico scontrino archiviato verr\xE0 eliminato definitivamente. Procedere comunque?"
-        : `Tutti i ${targets.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`)
-      : (targets.length === 1
-        ? `Lo scontrino archiviato di <strong>${esc(selStoreLabel)}</strong> verr\xE0 eliminato definitivamente. Procedere comunque?`
-        : `Tutti i ${targets.length} scontrini archiviati di <strong>${esc(selStoreLabel)}</strong> verranno eliminati definitivamente. Procedere comunque?`);
+        : `Tutti i ${targets.length} scontrini archiviati verranno eliminati definitivamente. Procedere comunque?`;
+    } else {
+      const scopeParts = [];
+      if (selectedStoreKey !== "all") scopeParts.push(`di <strong>${esc(selStoreLabel)}</strong>`);
+      if (dateActive) scopeParts.push(`(${esc(dateLbl)})`);
+      const scopeTxt = scopeParts.join(" ");
+      msg = targets.length === 1
+        ? `Lo scontrino archiviato ${scopeTxt} verr\xE0 eliminato definitivamente. Procedere comunque?`
+        : `Tutti i ${targets.length} scontrini archiviati ${scopeTxt} verranno eliminati definitivamente. Procedere comunque?`;
+    }
     const yes = await confirmDialog(
       "Elimina archivio spese",
       msg,
       targets.length === 1 ? "Elimina" : "Elimina tutti",
-      { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow({ storeFilter: selectedStoreKey, searchQuery }) }
+      { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow(currentArchiveOpts()) }
     );
     if (!yes) return;
     const tx = state.db.transaction("archivedReceipts", "readwrite");
@@ -1052,10 +1365,14 @@ export async function openArchiveWindow(opts = {}) {
       for (const r of targets) os.delete(r.id);
     }
     await txDone(tx);
-    await openArchiveWindow({ storeFilter: "all", searchQuery: isAll ? "" : searchQuery });
+    await openArchiveWindow({
+      storeFilter: "all",
+      searchQuery: isAll ? "" : searchQuery,
+      dateFilter: { mode: "all", month: "", from: "", to: "", day: "" }
+    });
     showToast(isAll
       ? "Archivio spese svuotato"
-      : (targets.length === 1 ? `Scontrino di ${selStoreLabel} eliminato` : `Spese di ${selStoreLabel} eliminate`));
+      : (targets.length === 1 ? "Scontrino filtrato eliminato" : "Spese filtrate eliminate"));
   });
 }
 

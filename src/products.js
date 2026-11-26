@@ -302,35 +302,40 @@ export async function openProductForm(productId, returnPage = "products", return
     const selected = assoc.includes(s.id) || (!productId && filterPreselectedStore === s.id), pr = prices.find((x) => x.productId === productId && x.storeId === s.id);
     return `<div class="card store-price-row"><label class="check-line"><input type="checkbox" data-store-check="${s.id}" ${selected ? "checked" : ""}>${storeChipHtml(s, { defaultBold: true })}</label><div class="price-wrap ${selected ? "" : "hidden"}" id="priceField-${s.id}"><span class="price-row-label">Prezzo<br>Unitario</span><div class="price-input-group"><div class="name-box"><input class="price-input" id="price-${s.id}" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Prezzo di ${esc(s.name)} in euro" value="${pr ? String((pr.amountMinor / 100).toFixed(2)).replace(".", ",") : ""}"><button type="button" class="name-no" data-price-no="${s.id}" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" data-price-ok="${s.id}" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="store-price-unit">${esc(initialDisplayUnit)}</span></span></div></div></div>`;
   }).join("") || '<div class="empty">Non hai ancora creato supermercati. Puoi salvare l\u2019articolo senza associarlo a uno store.</div>'}</div>${addListBoxHtml}</div></form></div>`;
+  const cancelAction = () => {
+    if (returnPage === "addItem" || returnPage === "list") {
+      state.currentModal = null;
+      state.currentModalKeep = false;
+      openAddItem();
+    } else if (returnPage === "editor") {
+      state.currentModal = null;
+      state.currentModalKeep = false;
+      returnFn();
+    } else if (returnPage === "categoryDetail") {
+      state.currentModal = null;
+      state.currentModalKeep = false;
+      openCategoryForm(returnCategoryId, true);
+    } else if (returnPage === "categoryPicker") {
+      state.currentModal = null;
+      state.currentModalKeep = false;
+      openCategoryProductPicker(returnCategoryId);
+    } else {
+      closeModal();
+    }
+  };
   const buttons = productId
     ? [
         { id: "prodSaveAsNewBtn", label: "Salva nuovo", class: "btn-azure prod-detail-action-btn", disabled: true, action: async () => {
           if ($("#prodSaveAsNewBtn")?.disabled) return;
           await saveProductForm(null, returnPage, returnCategoryId, { saveAsNew: true });
         } },
-        { id: "prodSaveExistingBtn", label: "Modifica esistente", class: "btn-primary prod-detail-action-btn", action: async () => saveProductForm(productId, returnPage, returnCategoryId) }
+        { id: "prodSaveExistingBtn", label: "Modifica esistente", class: "btn-primary prod-detail-action-btn", action: async () => saveProductForm(productId, returnPage, returnCategoryId) },
+        { id: "prodCancelLinkBtn", label: "Annulla", class: "prod-detail-cancel-link", action: cancelAction }
       ]
-    : [{ label: "Annulla", class: "btn-plain", action: () => {
-        if (returnPage === "addItem" || returnPage === "list") {
-          state.currentModal = null;
-          state.currentModalKeep = false;
-          openAddItem();
-        } else if (returnPage === "editor") {
-          state.currentModal = null;
-          state.currentModalKeep = false;
-          returnFn();
-        } else if (returnPage === "categoryDetail") {
-          state.currentModal = null;
-          state.currentModalKeep = false;
-          openCategoryForm(returnCategoryId, true);
-        } else if (returnPage === "categoryPicker") {
-          state.currentModal = null;
-          state.currentModalKeep = false;
-          openCategoryProductPicker(returnCategoryId);
-        } else {
-          closeModal();
-        }
-      } }, { label: "Aggiungi", class: "btn-primary", action: async () => saveProductForm(null, returnPage, returnCategoryId) }];
+    : [
+        { label: "Annulla", class: "btn-plain", action: cancelAction },
+        { label: "Aggiungi", class: "btn-primary", action: async () => saveProductForm(null, returnPage, returnCategoryId) }
+      ];
   const onClose = returnPage === "editor" ? () => returnFn() : (returnPage === "list" || returnPage === "addItem") ? () => openAddItem() : returnPage === "categoryDetail" ? () => openCategoryForm(returnCategoryId, true) : returnPage === "categoryPicker" ? () => openCategoryProductPicker(returnCategoryId) : returnPage === "products" && !productId ? () => renderProducts() : null;
   modal(productId ? "Dettagli articolo" : "Nuovo articolo", body, buttons, { closeButton: true, backdropClose: false, onClose, alignTop: true, headerThemed: true, stickyFooter: true, keepModalOnClose: returnPage === "list" || returnPage === "addItem" || returnPage === "editor" || returnPage === "categoryDetail" || returnPage === "categoryPicker" });
   if (productId) {
