@@ -112,12 +112,21 @@ export function wireManualAmount(initialVal = "", initialFreeOffer = false) {
     inp.readOnly = isFree;
     inp.tabIndex = isFree ? -1 : 0;
     inp.setAttribute("aria-disabled", isFree ? "true" : "false");
+    if (isFree) {
+      inp.setAttribute("disabled", "");
+      inp.setAttribute("readonly", "");
+    } else {
+      inp.removeAttribute("disabled");
+      inp.removeAttribute("readonly");
+    }
     manualRow?.classList.toggle("is-free-disabled", isFree);
+    if (manualRow) manualRow.inert = isFree;
     if (isFree) {
       if (document.activeElement === inp) {
         inp.blur();
         releaseModalKeyboard();
       }
+      try { window.getSelection()?.removeAllRanges?.(); } catch (_) {}
       syncState(false);
     } else {
       syncState(false);
@@ -130,8 +139,16 @@ export function wireManualAmount(initialVal = "", initialFreeOffer = false) {
   }
   syncFreeOfferState();
 
-  const startEdit = () => {
-    if (inp.disabled) {
+  const blockIfDisabled = (e) => {
+    if (inp.disabled || freeCb?.checked) {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      inp.blur();
+    }
+  };
+  const startEdit = (e) => {
+    if (inp.disabled || freeCb?.checked) {
+      if (e?.cancelable) e.preventDefault();
       inp.blur();
       return;
     }
@@ -139,10 +156,16 @@ export function wireManualAmount(initialVal = "", initialFreeOffer = false) {
     syncState(true);
   };
 
+  inp.addEventListener("pointerdown", blockIfDisabled);
+  inp.addEventListener("mousedown", blockIfDisabled);
+  inp.addEventListener("touchstart", blockIfDisabled, { passive: false });
   inp.addEventListener("focus", startEdit);
   inp.addEventListener("click", startEdit);
   selectAllOnFocus(inp);
-  inp.addEventListener("input", updateYellow);
+  inp.addEventListener("input", () => {
+    if (inp.disabled || freeCb?.checked) return;
+    updateYellow();
+  });
 
   clearBtn?.addEventListener("mousedown", (e) => {
     e.preventDefault();
@@ -987,7 +1010,7 @@ export function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor,
           <div class="name-box"><input id="listPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="6" placeholder="${curStore ? "0,00" : "N/D"}" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialListVal)}"${curStore ? "" : " disabled"}><button type="button" class="name-no" id="listPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="listPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>
         </div>
       </div>
-      <div class="inline-note manual-amount-box assign-discount-row${initialFreeOffer ? " is-free-disabled" : ""}" id="quickManualBox">
+      <div class="inline-note manual-amount-box assign-discount-row${initialFreeOffer ? " is-free-disabled" : ""}" id="quickManualBox"${initialFreeOffer ? " inert" : ""}>
         <label for="manualPriceInput"><strong>Prezzo Unit.<br>SCONTATO</strong></label>
         <div class="manual-input-wrap">
           <div class="name-box"><button type="button" class="manual-price-clear" id="manualPriceClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="manualPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialManualVal)}"${initialFreeOffer ? ' disabled readonly tabindex="-1" aria-disabled="true"' : ""}><button type="button" class="name-no" id="manualPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="manualPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>

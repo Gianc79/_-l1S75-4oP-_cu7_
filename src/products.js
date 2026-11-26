@@ -1046,12 +1046,24 @@ export async function openProductForm(productId, returnPage = "products", return
       addFreeCb.tabIndex = active ? 0 : -1;
     }
     addDiscRow?.classList.toggle("is-free-disabled", isFree);
+    if (addDiscRow) addDiscRow.inert = !discActive;
     if (addDiscInp) {
       addDiscInp.disabled = !discActive;
       addDiscInp.readOnly = !discActive;
       addDiscInp.tabIndex = discActive ? 0 : -1;
       addDiscInp.setAttribute("aria-disabled", discActive ? "false" : "true");
-      if (!discActive && document.activeElement === addDiscInp) addDiscInp.blur();
+      if (!discActive) {
+        addDiscInp.setAttribute("disabled", "");
+        addDiscInp.setAttribute("readonly", "");
+        if (document.activeElement === addDiscInp) {
+          addDiscInp.blur();
+          releaseModalKeyboard();
+        }
+        try { window.getSelection()?.removeAllRanges?.(); } catch (_) {}
+      } else {
+        addDiscInp.removeAttribute("disabled");
+        addDiscInp.removeAttribute("readonly");
+      }
     }
     if (!active) {
       addQtyBox?.classList.remove("editing");
@@ -1207,9 +1219,20 @@ export async function openProductForm(productId, returnPage = "products", return
         addDiscInp.blur();
         releaseModalKeyboard();
       };
+      const blockAddDiscIfDisabled = (e) => {
+        if (!addListCb.checked || addFreeCb?.checked || addDiscInp.disabled) {
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+          addDiscInp.blur();
+        }
+      };
+      addDiscInp.addEventListener("pointerdown", blockAddDiscIfDisabled);
+      addDiscInp.addEventListener("mousedown", blockAddDiscIfDisabled);
+      addDiscInp.addEventListener("touchstart", blockAddDiscIfDisabled, { passive: false });
       addDiscInp.addEventListener("focus", startAddDiscEdit);
       addDiscInp.addEventListener("click", startAddDiscEdit);
       addDiscInp.addEventListener("input", () => {
+        if (!addListCb.checked || addFreeCb?.checked || addDiscInp.disabled) return;
         const isPos = hasPositiveAddDisc(addDiscInp.value);
         addDiscInp.classList.toggle("has-positive", isPos);
         addDiscBox?.classList.toggle("has-positive", isPos);
