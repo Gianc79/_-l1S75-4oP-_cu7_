@@ -5,7 +5,7 @@ import { $, displayUnit, esc, eurosFromInput, filterBySearch, fitStoreChipLabels
 import { activeItems, activeList, allCategoriesSorted, allProductsSorted, allStoresSorted, delOne, getAll, getOne, putOne, replaceItems, settings, snapshotItems, storeIdsForProduct, txDone, visibleListItems } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, infoPop, modal, multiFilterHtml, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateFloatingAddButton, updateScrollTopButton, updateSingleFilterUI, wireCustomDropdown, wireMultiFilter, wireSingleFilter } from "./ui.js";
 import { currentSavedListId, isSavedListModified, listItemsForSave, openSavedListsWindow, saveListAs } from "./history.js";
-import { openArchiveWindow } from "./archive.js";
+import { openArchiveCurrentListModal, openArchiveWindow } from "./archive.js";
 import { openProductForm } from "./products.js";
 import { render } from "./router.js";
 
@@ -568,16 +568,18 @@ export function openListMenu() {
     save: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.8A1.8 1.8 0 0 1 5.3 3H16.8L20.5 6.7V19.2A1.8 1.8 0 0 1 18.7 21H5.3A1.8 1.8 0 0 1 3.5 19.2Z" fill="#159447" stroke="#0c5c2e" stroke-width="1.15" stroke-linejoin="round"/><rect x="6.5" y="3" width="9" height="5.5" rx=".9" fill="#e6f6ec" stroke="#0c5c2e" stroke-width=".9"/><rect x="12.5" y="4" width="2" height="3.5" fill="#159447"/><rect x="5.8" y="11.5" width="12.4" height="9.5" rx="1.1" fill="#ffffff" stroke="#0c5c2e" stroke-width=".9"/><path d="M8 14.5h8M8 17.5h5.5" stroke="#159447" stroke-width="1.4" stroke-linecap="round"/></svg>',
     saveas: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H16.5L20 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3 19Z" fill="#2f6db5" stroke="#173f73" stroke-width="1.1" stroke-linejoin="round"/><rect x="6.2" y="3" width="8.6" height="5.2" rx=".8" fill="#dfe8f3" stroke="#173f73" stroke-width=".85"/><rect x="12" y="4" width="1.8" height="3.2" fill="#6b7f95"/><rect x="5.3" y="11.8" width="12.4" height="8.7" rx="1" fill="#ffffff" stroke="#173f73" stroke-width=".85"/><path d="M13 19.5l.8-3 4.8-4.8 2.2 2.2-4.8 4.8z" fill="#f5a623" stroke="#8a4b00" stroke-width=".9" stroke-linejoin="round"/><path d="M13 19.5l.8-3 2.2 2.2z" fill="#ffe0a6"/></svg>',
     load: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6A1.5 1.5 0 0 1 4 4.5h4.8l1.8 2.2h8.9A1.5 1.5 0 0 1 21 8.2v2.3H5.5L2.5 19Z" fill="#e0a21b" stroke="#8a5d00" stroke-width="1.1" stroke-linejoin="round"/><rect x="6.5" y="5.5" width="11" height="6.5" rx=".9" fill="#ffffff" stroke="#8a5d00" stroke-width=".85"/><path d="M8.5 8h7M8.5 10.2h5" stroke="#174f86" stroke-width="1.2" stroke-linecap="round"/><path d="M5.6 10.5H22l-3.4 9H2.5Z" fill="#ffd24d" stroke="#8a5d00" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+    archiveCurrent: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-2.3-1.6L14.4 21 12 19.4 9.6 21l-2.3-1.6L5 21V3Z" fill="#ffffff" stroke="#117a4b" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 8h7M8.5 11.8h5.5M8.5 15.6h3.5" stroke="#117a4b" stroke-width="1.55" stroke-linecap="round"/><circle cx="17.2" cy="16.2" r="3.6" fill="#159447" stroke="#ffffff" stroke-width="1.1"/><path d="M17.2 14.5v3.4M15.5 16.2h3.4" fill="none" stroke="#ffffff" stroke-width="1.55" stroke-linecap="round"/></svg>',
     archive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-2.3-1.6L14.4 21 12 19.4 9.6 21l-2.3-1.6L5 21V3Z" fill="#ffffff" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 8h7M8.5 11.8h7M8.5 15.6h4.2" stroke="#174f86" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="16.2" r="3.2" fill="#159447" stroke="#ffffff" stroke-width="1.1"/><path d="M15.9 16.2l.9.9 1.8-1.9" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
   const card = (key, title, desc, danger = false) => `<button type="button" class="list-action-card${danger ? " is-danger" : ""}" data-list-action="${key}"><span class="list-action-icon ${key}">${icons[key]}</span><span class="list-action-text"><span class="list-action-title">${title}</span><span class="list-action-desc">${desc}</span></span></button>`;
   const body = `<div class="list-menu-sheet">
-    <div class="list-menu-group-label">Gestione liste salvate</div>
+    <div class="list-menu-group-label">Gestione liste</div>
     ${card("save", "Salva", "Salva la lista attuale.")}
     ${card("saveas", "Salva con nome", "Salva la lista attuale con un nuovo nome.")}
     ${card("load", "Elenco liste salvate", "Carica una lista dall\u2019elenco, sostituendo la lista attuale.")}
-    <div class="list-menu-group-label is-second">Storico spese salvate</div>
-    ${card("archive", "Archivio spese", "Archivia la spesa attuale come scontrino e consulta lo storico.")}
+    <div class="list-menu-group-label is-second">Gestione spese</div>
+    ${card("archiveCurrent", "Archivia spesa corrente", "Archivia la spesa attuale come scontrino.")}
+    ${card("archive", "Archivio spese", "Consulta e gestisci gli scontrini archiviati.")}
   </div>`;
   modal("Lista della spesa", body, [], { closeButton: true, alignTop: true, backdropClose: false, themed: true });
   $("#modalRoot").querySelectorAll("[data-list-action]").forEach((btn) => btn.addEventListener("click", async () => {
@@ -604,6 +606,9 @@ export function openListMenu() {
     } else if (m === "load") {
       state.currentModal = null;
       await openSavedListsWindow("load");
+    } else if (m === "archiveCurrent") {
+      state.currentModal = null;
+      await openArchiveCurrentListModal();
     } else if (m === "archive") {
       state.currentModal = null;
       await openArchiveWindow();

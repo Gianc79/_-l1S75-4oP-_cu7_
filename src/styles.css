@@ -2228,4 +2228,9 @@ input[type=search].search-input:placeholder-shown,
   .archive-filter-bar .archive-search-scope-btn{font-size:12px;padding:0 6px 0 8px}
   .archive-filter-bar .archive-search-combo input[type=search].archive-combo-input{font-size:13px}
 }
+/* Menu Lista della spesa (Archivia spesa corrente) e finestra Archivia spesa (Lista di origine) */
+.list-action-icon.archiveCurrent{background:linear-gradient(180deg,#e4f7ec 0%,#c7edd7 100%);color:#117a4b;border:1px solid #a6d9bc}
+.archive-source-list-bar{gap:10px}
+.archive-source-list-val{font-size:14px;font-weight:800;color:#123e6d;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.archive-source-list-val.is-unnamed{font-style:italic;font-weight:650;color:var(--muted)}
 

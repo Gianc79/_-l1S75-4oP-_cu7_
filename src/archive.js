@@ -1046,11 +1046,6 @@ export async function openArchiveWindow(opts = {}) {
     </div>` : "";
 
   const body = `<div class="saved-lists-sheet archive-sheet">
-    <div class="saved-name-card archive-cta-card">
-      <button type="button" class="btn btn-primary btn-block" id="archiveCurrentBtn" ${validActiveItems.length ? "" : "disabled"}>
-        ${SVG_CIRCLED_PLUS}<span>Archivia spesa corrente</span>
-      </button>
-    </div>
     <div class="archive-sticky-stack">
       ${filterBarHtml}
       <div class="saved-list-head list-section-banner archive-sticky-banner">
@@ -1081,7 +1076,7 @@ export async function openArchiveWindow(opts = {}) {
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche filtrare l'elenco per nome Spesa, Reparto, Marca o Articolo.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche filtrare l'elenco per nome Spesa, Reparto, Marca o Articolo.</div>`);
   }
 
   const container = $("#archivedReceiptsContainer");
@@ -1228,7 +1223,7 @@ export async function openArchiveWindow(opts = {}) {
 
     if (!visibleReceipts.length) {
       const emptyReceiptMsg = !receipts.length
-        ? "Nessuna spesa archiviata.<br>Tocca \u201CArchivia spesa corrente\u201D per salvare il tuo primo scontrino."
+        ? "Nessuna spesa archiviata.<br>Usa \u201CArchivia spesa corrente\u201D dal menu della lista per salvare il tuo primo scontrino."
         : (q && searchField === "receipt" ? "Nessuna spesa trovata con questo nome." : "Nessuno scontrino corrisponde ai filtri.");
       container.innerHTML = `<div class="empty">${emptyReceiptMsg}</div>`;
       return;
@@ -1282,12 +1277,6 @@ export async function openArchiveWindow(opts = {}) {
 
   syncDateFilterUI();
   paintReceipts();
-
-  $("#archiveCurrentBtn")?.addEventListener("click", () => {
-    state.currentModal = null;
-    state.currentModalKeep = false;
-    openArchiveCurrentListModal();
-  });
 
   if (receipts.length) {
     wireSingleFilter("archiveStoreFilter", {
@@ -1556,7 +1545,7 @@ export async function openArchiveCurrentListModal() {
   const items = itemsRaw.filter((i) => !!pMap[i.productId]);
   if (!items.length) {
     showToast("La lista \xE8 vuota.");
-    await openArchiveWindow();
+    openListMenu();
     return;
   }
 
@@ -1599,7 +1588,16 @@ export async function openArchiveCurrentListModal() {
     </label>`;
   }).join("");
 
+  const sourceListName = curSavedList?.name ? curSavedList.name.trim() : "";
+  const sourceListHtml = sourceListName
+    ? `<span class="archive-source-list-val">${esc(sourceListName)}</span>`
+    : '<span class="archive-source-list-val is-unnamed">Senza nome</span>';
+
   const body = `<div class="saved-lists-sheet archive-wizard-sheet">
+    <div class="archive-card archive-single-store-bar archive-source-list-bar">
+      <span class="archive-single-lbl">Lista di origine</span>
+      ${sourceListHtml}
+    </div>
     ${isMultiStore ? `
       <div class="archive-card">
         <div class="archive-card-title">Supermercati da archiviare</div>
@@ -1776,7 +1774,7 @@ export async function openArchiveCurrentListModal() {
   };
 
   modal("Archivia spesa", body, [
-    { label: "Annulla", class: "btn-plain", action: () => { state.currentModal = null; state.currentModalKeep = false; openArchiveWindow(); } },
+    { label: "Annulla", class: "btn-plain", action: () => { state.currentModal = null; state.currentModalKeep = false; openListMenu(); } },
     { label: "Archivia", class: "btn-primary", action: doArchive }
   ], {
     closeButton: true,
@@ -1784,7 +1782,7 @@ export async function openArchiveCurrentListModal() {
     alignTop: true,
     keepModalOnClose: true,
     themed: true,
-    onClose: () => openArchiveWindow()
+    onClose: () => openListMenu()
   });
 
   const root = $("#modalRoot");
