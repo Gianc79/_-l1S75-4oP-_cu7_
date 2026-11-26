@@ -174,7 +174,7 @@ export function resolveReceiptItem(it, pMap = null, cMap = null) {
   if (liveProd) {
     const lf = extractProductFields(liveProd);
     const itemName = (lf.itemName || liveProd.name || snap.itemName || "Articolo").trim();
-    const brand = String(lf.brand || "").trim();
+    const brand = String((lf.isLegacy ? (liveProd.brand || it?.productBrandSnapshot) : lf.brand) || "").trim();
     const isSfuso = snap.packaging === "sfuso";
     const netPart = snap.netPart;
     let effectivePackPieces = null;
@@ -826,20 +826,20 @@ export async function openArchiveWindow(opts = {}) {
       ariaLabel: "Cerca per nome spesa nell'archivio spese",
       maxLength: 20
     },
-    item: {
-      key: "item",
-      shortLabel: "Articolo",
-      label: "Nome articolo",
-      placeholder: "Cerca nome articolo\u2026",
-      ariaLabel: "Cerca per nome articolo nell'archivio spese",
-      maxLength: 25
-    },
     brand: {
       key: "brand",
       shortLabel: "Marca",
       label: "Marca",
       placeholder: "Cerca marca\u2026",
       ariaLabel: "Cerca per marca nell'archivio spese",
+      maxLength: 25
+    },
+    item: {
+      key: "item",
+      shortLabel: "Articolo",
+      label: "Nome articolo",
+      placeholder: "Cerca nome articolo\u2026",
+      ariaLabel: "Cerca per nome articolo nell'archivio spese",
       maxLength: 25
     }
   };
@@ -957,7 +957,7 @@ export async function openArchiveWindow(opts = {}) {
       : (storeHasColors(info) ? storeChipHtml({ ...info, name: info.displayName }) : "");
     return { id: info.key, label: info.displayName, html, disabled: false };
   });
-  const allStoresLabel = "Supermercati";
+  const allStoresLabel = "Tutti i supermercati";
 
   const initMonthParts = (dateFilter.month || latestReceiptIso.slice(0, 7)).split("-");
   const initMonthYear = initMonthParts[0] || availableYears[0];
@@ -975,66 +975,64 @@ export async function openArchiveWindow(opts = {}) {
     </button>`).join("");
 
   const filterBarHtml = receipts.length ? `
-    <div class="archive-filter-sticky">
-      <div class="archive-filter-bar">
-        <div class="archive-filter-top-row">
-          ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey, searchMaxLength: 20, searchUppercase: true })}
-          <div class="store-filter-wrap archive-date-filter-wrap" id="archiveDateFilterWrap">
-            <button type="button" class="store-filter-trigger archive-date-trigger${isDateFilterActive() ? " has-filter" : ""}" id="archiveDateFilterTrigger" aria-haspopup="dialog" aria-expanded="false">
-              <span class="archive-date-trigger-content">
-                <span class="archive-date-trigger-ico" aria-hidden="true">${CALENDAR_ICON_SVG}</span>
-                <span id="archiveDateFilterSummary">${esc(getDateFilterLabel(true))}</span>
-              </span>
-              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:16px;height:16px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="store-filter-menu archive-date-filter-menu" id="archiveDateFilterMenu" role="dialog" aria-label="Filtra spese per data" hidden>
-              <div class="archive-date-modes" role="tablist" aria-label="Tipo di filtro data">
-                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "all" ? " active" : ""}" data-date-mode="all" role="tab" aria-selected="${dateFilter.mode === "all" ? "true" : "false"}">Tutte</button>
-                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "range" ? " active" : ""}" data-date-mode="range" role="tab" aria-selected="${dateFilter.mode === "range" ? "true" : "false"}">Intervallo</button>
-                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "month" ? " active" : ""}" data-date-mode="month" role="tab" aria-selected="${dateFilter.mode === "month" ? "true" : "false"}">Mese</button>
-                <button type="button" class="archive-date-mode-btn${dateFilter.mode === "day" ? " active" : ""}" data-date-mode="day" role="tab" aria-selected="${dateFilter.mode === "day" ? "true" : "false"}">Giorno</button>
-              </div>
-              <div class="archive-date-panel" id="archiveDatePanelMonth"${dateFilter.mode === "month" ? "" : " hidden"}>
-                <div class="archive-date-month-grid">
-                  <select id="archiveDateMonthSelect" class="archive-date-select" aria-label="Mese">${monthOptsHtml}</select>
-                  <select id="archiveDateYearSelect" class="archive-date-select" aria-label="Anno">${yearOptsHtml}</select>
-                </div>
-              </div>
-              <div class="archive-date-panel" id="archiveDatePanelRange"${dateFilter.mode === "range" ? "" : " hidden"}>
-                <div class="archive-date-field-row">
-                  <label for="archiveDateFrom">Dal</label>
-                  <input id="archiveDateFrom" type="date" class="archive-date-input" value="${esc(dateFilter.from)}" aria-label="Data inizio intervallo">
-                </div>
-                <div class="archive-date-field-row">
-                  <label for="archiveDateTo">Al</label>
-                  <input id="archiveDateTo" type="date" class="archive-date-input" value="${esc(dateFilter.to)}" aria-label="Data fine intervallo">
-                </div>
-              </div>
-              <div class="archive-date-panel" id="archiveDatePanelDay"${dateFilter.mode === "day" ? "" : " hidden"}>
-                <div class="archive-date-field-row">
-                  <label for="archiveDateDay">Data</label>
-                  <input id="archiveDateDay" type="date" class="archive-date-input" value="${esc(dateFilter.day)}" aria-label="Data precisa">
-                </div>
-              </div>
-              <div class="archive-date-menu-foot" id="archiveDateMenuFoot"${dateFilter.mode === "all" ? " hidden" : ""}>
-                <button type="button" class="btn btn-primary btn-small archive-date-apply-btn" id="archiveDateApplyBtn">Applica</button>
-              </div>
+    <div class="archive-filter-bar">
+      <div class="archive-filter-top-row">
+        ${singleFilterHtml({ id: "archiveStoreFilter", allLabel: allStoresLabel, options: storeFilterOptions, selectedValue: selectedStoreKey, searchMaxLength: 20, searchUppercase: true })}
+        <button type="button" class="filter-clear archive-filter-clear dim" id="resetArchiveFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri" disabled>${SVG_FILTER_CLEAR}</button>
+      </div>
+      <div class="store-filter-wrap archive-date-filter-wrap" id="archiveDateFilterWrap">
+        <button type="button" class="store-filter-trigger archive-date-trigger${isDateFilterActive() ? " has-filter" : ""}" id="archiveDateFilterTrigger" aria-haspopup="dialog" aria-expanded="false">
+          <span class="archive-date-trigger-content">
+            <span class="archive-date-trigger-ico" aria-hidden="true">${CALENDAR_ICON_SVG}</span>
+            <span id="archiveDateFilterSummary">${esc(getDateFilterLabel())}</span>
+          </span>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron" style="width:17px;height:17px;color:#174f86"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="store-filter-menu archive-date-filter-menu" id="archiveDateFilterMenu" role="dialog" aria-label="Filtra spese per data" hidden>
+          <div class="archive-date-modes" role="tablist" aria-label="Tipo di filtro data">
+            <button type="button" class="archive-date-mode-btn${dateFilter.mode === "all" ? " active" : ""}" data-date-mode="all" role="tab" aria-selected="${dateFilter.mode === "all" ? "true" : "false"}">Tutte</button>
+            <button type="button" class="archive-date-mode-btn${dateFilter.mode === "range" ? " active" : ""}" data-date-mode="range" role="tab" aria-selected="${dateFilter.mode === "range" ? "true" : "false"}">Intervallo</button>
+            <button type="button" class="archive-date-mode-btn${dateFilter.mode === "month" ? " active" : ""}" data-date-mode="month" role="tab" aria-selected="${dateFilter.mode === "month" ? "true" : "false"}">Mese</button>
+            <button type="button" class="archive-date-mode-btn${dateFilter.mode === "day" ? " active" : ""}" data-date-mode="day" role="tab" aria-selected="${dateFilter.mode === "day" ? "true" : "false"}">Giorno</button>
+          </div>
+          <div class="archive-date-panel" id="archiveDatePanelMonth"${dateFilter.mode === "month" ? "" : " hidden"}>
+            <div class="archive-date-month-grid">
+              <select id="archiveDateMonthSelect" class="archive-date-select" aria-label="Mese">${monthOptsHtml}</select>
+              <select id="archiveDateYearSelect" class="archive-date-select" aria-label="Anno">${yearOptsHtml}</select>
             </div>
           </div>
-          <button type="button" class="filter-clear archive-filter-clear dim" id="resetArchiveFilters" aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri" disabled>${SVG_FILTER_CLEAR}</button>
-        </div>
-        <div class="archive-search-combo${searchQuery.trim() ? " has-query" : ""}" id="archiveSearchCombo">
-          <div class="store-filter-wrap archive-search-scope-wrap" id="archiveSearchScopeWrap">
-            <button type="button" class="store-filter-trigger archive-search-scope-btn" id="archiveSearchScopeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Cerca per: ${esc(curSearchMeta.label)}" title="Scegli il campo di ricerca">
-              <span id="archiveSearchScopeLabel">${esc(curSearchMeta.shortLabel)}</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="store-filter-menu archive-search-scope-menu" id="archiveSearchScopeMenu" role="listbox" aria-label="Cerca per" hidden>
-              ${searchScopeOptsHtml}
+          <div class="archive-date-panel" id="archiveDatePanelRange"${dateFilter.mode === "range" ? "" : " hidden"}>
+            <div class="archive-date-field-row">
+              <label for="archiveDateFrom">Dal</label>
+              <input id="archiveDateFrom" type="date" class="archive-date-input" value="${esc(dateFilter.from)}" aria-label="Data inizio intervallo">
+            </div>
+            <div class="archive-date-field-row">
+              <label for="archiveDateTo">Al</label>
+              <input id="archiveDateTo" type="date" class="archive-date-input" value="${esc(dateFilter.to)}" aria-label="Data fine intervallo">
             </div>
           </div>
-          <input id="archiveSearchInput" type="search" class="search-input archive-combo-input" maxlength="${curSearchMeta.maxLength}" placeholder="${esc(curSearchMeta.placeholder)}" value="${esc(searchQuery)}" autocomplete="off" aria-label="${esc(curSearchMeta.ariaLabel)}">
+          <div class="archive-date-panel" id="archiveDatePanelDay"${dateFilter.mode === "day" ? "" : " hidden"}>
+            <div class="archive-date-field-row">
+              <label for="archiveDateDay">Data</label>
+              <input id="archiveDateDay" type="date" class="archive-date-input" value="${esc(dateFilter.day)}" aria-label="Data precisa">
+            </div>
+          </div>
+          <div class="archive-date-menu-foot" id="archiveDateMenuFoot"${dateFilter.mode === "all" ? " hidden" : ""}>
+            <button type="button" class="btn btn-primary btn-small archive-date-apply-btn" id="archiveDateApplyBtn">Applica</button>
+          </div>
         </div>
+      </div>
+      <div class="archive-search-combo${searchQuery.trim() ? " has-query" : ""}" id="archiveSearchCombo">
+        <div class="store-filter-wrap archive-search-scope-wrap" id="archiveSearchScopeWrap">
+          <button type="button" class="store-filter-trigger archive-search-scope-btn" id="archiveSearchScopeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Cerca per: ${esc(curSearchMeta.label)}" title="Scegli il campo di ricerca">
+            <span id="archiveSearchScopeLabel">${esc(curSearchMeta.shortLabel)}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="store-filter-menu archive-search-scope-menu" id="archiveSearchScopeMenu" role="listbox" aria-label="Cerca per" hidden>
+            ${searchScopeOptsHtml}
+          </div>
+        </div>
+        <input id="archiveSearchInput" type="search" class="search-input archive-combo-input" maxlength="${curSearchMeta.maxLength}" placeholder="${esc(curSearchMeta.placeholder)}" value="${esc(searchQuery)}" autocomplete="off" aria-label="${esc(curSearchMeta.ariaLabel)}">
       </div>
     </div>` : "";
 
@@ -1044,9 +1042,9 @@ export async function openArchiveWindow(opts = {}) {
         ${SVG_CIRCLED_PLUS}<span>Archivia spesa corrente</span>
       </button>
     </div>
-    ${filterBarHtml}
-    <div class="saved-list-section has-section-banner">
-      <div class="saved-list-head list-section-banner">
+    <div class="archive-sticky-stack">
+      ${filterBarHtml}
+      <div class="saved-list-head list-section-banner archive-sticky-banner">
         <div class="saved-list-head-left">
           <span class="saved-list-icon archive-section-icon">${RECEIPT_ICON_SVG}</span>
           <span class="saved-list-title" id="archiveSectionTitle">Spese archiviate</span>
@@ -1054,6 +1052,8 @@ export async function openArchiveWindow(opts = {}) {
         </div>
         <button type="button" class="header-icon trash-mini" id="delAllArchivedBtn" ${receipts.length ? "" : "disabled"} aria-label="Elimina tutte le spese archiviate" title="Elimina tutte le spese archiviate">${TRASH_OFFICE}</button>
       </div>
+    </div>
+    <div class="saved-list-section archive-list-body">
       <div id="archivedReceiptsContainer"></div>
     </div>
   </div>`;
@@ -1102,7 +1102,7 @@ export async function openArchiveWindow(opts = {}) {
   const syncDateFilterUI = () => {
     const active = isDateFilterActive();
     if (dateTrigger) dateTrigger.classList.toggle("has-filter", active);
-    if (dateSummary) dateSummary.textContent = getDateFilterLabel(true);
+    if (dateSummary) dateSummary.textContent = getDateFilterLabel();
     if (dateMenu) {
       dateMenu.querySelectorAll("[data-date-mode]").forEach((btn) => {
         const sel = btn.dataset.dateMode === dateFilter.mode;
@@ -1160,7 +1160,7 @@ export async function openArchiveWindow(opts = {}) {
           const resolved = resolveReceiptItem(it, pMap, cMap);
           const itemHay = searchField === "brand"
             ? searchNorm(resolved.resolvedBrand || "")
-            : searchNorm(resolved.resolvedTitle || "");
+            : searchNorm(resolved.resolvedItemName || resolved.resolvedTitle || it.productNameSnapshot || "");
           if (itemHay && tokens.every((tok) => itemHay.includes(tok))) {
             matchedItems.push({ receipt: r, item: resolved });
           }
@@ -1446,12 +1446,15 @@ export async function openArchiveWindow(opts = {}) {
       searchQuery = "";
       paintReceipts();
     });
-    searchInp.addEventListener("input", () => {
+    const onSearchInput = () => {
       const maxLen = (SEARCH_FIELDS[searchField] || SEARCH_FIELDS.receipt).maxLength;
       if (searchInp.value.length > maxLen) searchInp.value = searchInp.value.slice(0, maxLen);
       searchQuery = searchInp.value;
       paintReceipts();
-    });
+    };
+    searchInp.addEventListener("input", onSearchInput);
+    searchInp.addEventListener("search", onSearchInput);
+    searchInp.addEventListener("change", onSearchInput);
   }
 
   $("#delAllArchivedBtn")?.addEventListener("click", async () => {
