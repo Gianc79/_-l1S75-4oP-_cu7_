@@ -2130,3 +2130,11 @@ input[type=search].search-input:placeholder-shown,
 .prod-filters-box:not(.prod-filters-split) .prod-filters-grid .store-filter-trigger[aria-expanded="true"] .store-filter-chevron,.archive-filter-bar .store-filter-trigger[aria-expanded="true"] .store-filter-chevron{transform:rotate(180deg);color:#174f86}
 .prod-filters-box:not(.prod-filters-split) .prod-filters-grid .store-filter-trigger[aria-expanded="true"]::after,.archive-filter-bar .store-filter-trigger[aria-expanded="true"]::after{content:"";position:absolute;left:50%;top:calc(100% + 6px);width:12px;height:12px;background:#ffffff;border-left:2px solid #174f86;border-top:2px solid #174f86;transform:translateX(-50%) rotate(45deg);z-index:69;pointer-events:none;border-radius:2px 0 0 0}
 .prod-filters-box:not(.prod-filters-split) .prod-filters-grid .store-filter-wrap:has(.store-filter-trigger[aria-expanded="true"]) .store-filter-menu,.archive-filter-bar .store-filter-wrap:has(.store-filter-trigger[aria-expanded="true"]) .store-filter-menu{top:calc(100% + 9px);left:0;right:0;z-index:67;border:2px solid #174f86;box-shadow:0 14px 32px rgba(14,48,84,.26)}
+/* Opzione Articolo in offerta gratuita sotto ogni campo Prezzo Unit. SCONTATO */
+#quickManualBox{border-bottom:0;padding-bottom:4px!important}
+.assign-free-offer-row{padding:3px 12px 9px;border-bottom:1px solid #e1ebe6}
+.new-prod-free-offer-row{padding-top:2px}
+.free-offer-opt{min-height:24px;padding:0;gap:8px;font-size:13px;font-weight:650;color:#123e6d;cursor:pointer}
+.free-offer-opt input[type=checkbox]{width:19px;height:19px;flex:0 0 19px}
+.manual-amount-box.is-free-disabled>label,.manual-amount-box.is-free-disabled .price-eur{opacity:.52}
+#manualPriceInput:disabled{background:#eef2f0!important;background-image:none!important;border-color:#d3ddd8!important;color:var(--muted)!important;box-shadow:none!important;cursor:not-allowed;pointer-events:none;caret-color:transparent!important}

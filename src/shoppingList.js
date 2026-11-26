@@ -25,12 +25,15 @@ export function wireAmount(p, prices) {
   const upd = () => {
     const q = parseQty($("#quickQty").value), sid = $("#quickStore").value || null, pr = prices.find((x) => x.productId === p.id && x.storeId === sid), el = $("#quickAmount");
     if (!el) return;
+    const isFreeOffer = !!$("#manualFreeOffer")?.checked;
     const manVal = $("#manualPriceInput")?.value.trim() ?? "";
     const manUnitMinor = eurosFromInput(manVal);
     const listInp = $("#listPriceInput");
     const listUnitMinor = sid && listInp && !listInp.disabled ? eurosFromInput(listInp.value.trim()) : null;
     let totalCents = null;
-    if (manUnitMinor !== null && !Number.isNaN(manUnitMinor) && manUnitMinor > 0 && q > 0) {
+    if (isFreeOffer) {
+      totalCents = 0;
+    } else if (manUnitMinor !== null && !Number.isNaN(manUnitMinor) && manUnitMinor > 0 && q > 0) {
       totalCents = Math.round(manUnitMinor * q);
     } else if (sid && listUnitMinor !== null && !Number.isNaN(listUnitMinor) && q > 0) {
       totalCents = Math.round(listUnitMinor * q);
@@ -55,14 +58,17 @@ export function wireAmount(p, prices) {
   $("#quickStore").addEventListener("change", upd);
   $("#listPriceInput")?.addEventListener("input", upd);
   $("#manualPriceInput")?.addEventListener("input", upd);
+  $("#manualFreeOffer")?.addEventListener("change", upd);
   selectAllOnFocus(qtyInp);
   upd();
 }
 
-export function wireManualAmount(initialVal = "") {
+export function wireManualAmount(initialVal = "", initialFreeOffer = false) {
   const inp = $("#manualPriceInput");
   if (!inp) return;
   const box = inp.closest(".name-box");
+  const manualRow = $("#quickManualBox");
+  const freeCb = $("#manualFreeOffer");
   const clearBtn = $("#manualPriceClear");
   const noBtn = $("#manualPriceNo");
   const okBtn = $("#manualPriceOk");
@@ -85,23 +91,50 @@ export function wireManualAmount(initialVal = "") {
   }
 
   const updateYellow = () => {
-    const isPos = hasPositiveVal(inp.value);
+    const isPos = !inp.disabled && hasPositiveVal(inp.value);
     inp.classList.toggle("has-positive", isPos);
     box?.classList.toggle("has-positive", isPos);
   };
 
   const syncState = (isEditing) => {
     if (!box) return;
-    box.classList.toggle("editing", !!isEditing);
-    const showClear = !isEditing && hasPositiveVal(inp.value);
+    const editing = !inp.disabled && !!isEditing;
+    box.classList.toggle("editing", editing);
+    const showClear = !inp.disabled && !editing && hasPositiveVal(inp.value);
     box.classList.toggle("has-clear", showClear);
     if (clearBtn) clearBtn.hidden = !showClear;
     updateYellow();
   };
 
-  syncState(false);
+  const syncFreeOfferState = () => {
+    const isFree = !!freeCb?.checked;
+    inp.disabled = isFree;
+    inp.readOnly = isFree;
+    inp.tabIndex = isFree ? -1 : 0;
+    inp.setAttribute("aria-disabled", isFree ? "true" : "false");
+    manualRow?.classList.toggle("is-free-disabled", isFree);
+    if (isFree) {
+      if (document.activeElement === inp) {
+        inp.blur();
+        releaseModalKeyboard();
+      }
+      syncState(false);
+    } else {
+      syncState(false);
+    }
+  };
+
+  if (freeCb) {
+    freeCb.checked = !!initialFreeOffer;
+    freeCb.addEventListener("change", syncFreeOfferState);
+  }
+  syncFreeOfferState();
 
   const startEdit = () => {
+    if (inp.disabled) {
+      inp.blur();
+      return;
+    }
     if (!box || box.classList.contains("editing")) return;
     syncState(true);
   };
@@ -118,6 +151,7 @@ export function wireManualAmount(initialVal = "") {
   clearBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (inp.disabled) return;
     savedVal = "";
     inp.value = "";
     syncState(false);
@@ -921,7 +955,7 @@ export async function addProductToList(productId) {
   await openNewListItemEditor(productId);
 }
 
-export function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor, initialManualVal) {
+export function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor, initialManualVal, initialFreeOffer = false) {
   const unit = displayUnit(p);
   const dp = productDisplayParts(p);
   const brandRow = dp.brand ? `<span class="assign-product-brand">${esc(dp.brand)}</span>` : "";
@@ -953,11 +987,14 @@ export function assignEditorHtml(p, qtyVal, curStore, available, listPriceMinor,
           <div class="name-box"><input id="listPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="6" placeholder="${curStore ? "0,00" : "N/D"}" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialListVal)}"${curStore ? "" : " disabled"}><button type="button" class="name-no" id="listPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="listPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>
         </div>
       </div>
-      <div class="inline-note manual-amount-box assign-discount-row" id="quickManualBox">
+      <div class="inline-note manual-amount-box assign-discount-row${initialFreeOffer ? " is-free-disabled" : ""}" id="quickManualBox">
         <label for="manualPriceInput"><strong>Prezzo Unit.<br>SCONTATO</strong></label>
         <div class="manual-input-wrap">
-          <div class="name-box"><button type="button" class="manual-price-clear" id="manualPriceClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="manualPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialManualVal)}"><button type="button" class="name-no" id="manualPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="manualPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>
+          <div class="name-box"><button type="button" class="manual-price-clear" id="manualPriceClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="manualPriceInput" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" value="${esc(initialManualVal)}"${initialFreeOffer ? ' disabled readonly tabindex="-1" aria-disabled="true"' : ""}><button type="button" class="name-no" id="manualPriceNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="manualPriceOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">&euro;/${esc(unit)}</span>
         </div>
+      </div>
+      <div class="assign-free-offer-row">
+        <label class="check-line free-offer-opt" for="manualFreeOffer"><input type="checkbox" id="manualFreeOffer"${initialFreeOffer ? " checked" : ""}><span>Articolo in offerta gratuita</span></label>
       </div>
       <div class="assign-total-row" id="quickAmount"></div>
     </div>
@@ -980,9 +1017,10 @@ export async function openNewListItemEditor(productId, ov = null) {
     const priceHtml = pr ? `<span class="dd-opt-price">${esc(moneyPerUnit(pr.amountMinor, p))}</span>` : "";
     return { ...s, menuName: pr ? `${s.name} ${moneyPerUnit(pr.amountMinor, p)}` : s.name, labelHtml: nameHtml, menuHtml: pr ? `${nameHtml}${priceHtml}` : nameHtml };
   });
+  const initialFreeOffer = !!(ov && ov.freeOffer);
   const initialManualVal = ov && ov.manualAmount !== undefined ? ov.manualAmount : "";
   const initialPrice = initialStore ? prices.find((x) => x.productId === p.id && x.storeId === initialStore) : null;
-  const body = assignEditorHtml(p, ov ? ov.qty : fmtQtyUnit(1, p.unit), initialStore, available, initialPrice ? initialPrice.amountMinor : null, initialManualVal);
+  const body = assignEditorHtml(p, ov ? ov.qty : fmtQtyUnit(1, p.unit), initialStore, available, initialPrice ? initialPrice.amountMinor : null, initialManualVal, initialFreeOffer);
   let listPriceState = null;
   modal("Modifica assegnazioni", body, [{ label: "Annulla", class: "btn-plain", action: () => closeModal() }, { label: "Aggiungi", class: "btn-primary", action: async () => {
     const q = parseQty($("#quickQty").value);
@@ -997,15 +1035,21 @@ export async function openNewListItemEditor(productId, ov = null) {
       showToast("Controlla il prezzo di listino inserito.");
       return;
     }
-    const manVal = $("#manualPriceInput")?.value.trim() ?? "";
-    const manMinor = eurosFromInput(manVal);
-    if (Number.isNaN(manMinor)) {
-      showToast("Controlla il prezzo unitario manuale inserito.");
-      return;
+    const isFreeOffer = !!$("#manualFreeOffer")?.checked;
+    let validManMinor = null;
+    if (isFreeOffer) {
+      validManMinor = 0;
+    } else {
+      const manVal = $("#manualPriceInput")?.value.trim() ?? "";
+      const manMinor = eurosFromInput(manVal);
+      if (Number.isNaN(manMinor)) {
+        showToast("Controlla il prezzo unitario manuale inserito.");
+        return;
+      }
+      validManMinor = manMinor !== null && manMinor > 0 ? manMinor : null;
     }
     if (sid && listPriceState) listPriceState.editedPrices.set(sid, listMinor);
     if (listPriceState) await saveEditedListPrices(p.id, listPriceState.editedPrices);
-    const validManMinor = manMinor !== null && manMinor > 0 ? manMinor : null;
     await actuallyAddItem(p.id, sid, q, validManMinor !== null ? Math.round(validManMinor * q) : null, validManMinor);
     state.currentModal = null;
     state.currentModalKeep = false;
@@ -1021,7 +1065,7 @@ export async function openNewListItemEditor(productId, ov = null) {
   listPriceState = wireListPrice(p, prices);
   wireQuickQty(p);
   wireAmount(p, prices);
-  wireManualAmount(initialManualVal);
+  wireManualAmount(initialManualVal, initialFreeOffer);
   fitStoreChipLabels($("#modalRoot"));
 }
 
@@ -1143,8 +1187,10 @@ export async function openQuickEdit(itemId, ov = null) {
     return { ...s, menuName: pr ? `${s.name} ${moneyPerUnit(pr.amountMinor, p)}` : s.name, labelHtml: nameHtml, menuHtml: pr ? `${nameHtml}${priceHtml}` : nameHtml };
   });
   const currentPrice = prices.find((x) => x.productId === p.id && x.storeId === curStore);
-  const initialManualVal = ov && ov.manualAmount !== undefined ? ov.manualAmount : (item.manualUnitPriceMinor !== null && item.manualUnitPriceMinor !== undefined ? (item.manualUnitPriceMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (item.manualAmountMinor !== null && item.manualAmountMinor !== undefined ? (item.manualAmountMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""));
-  const body = assignEditorHtml(p, ov ? ov.qty : fmtQtyUnit(item.quantity, p.unit), curStore, available, currentPrice ? currentPrice.amountMinor : null, initialManualVal);
+  const isExistingFree = item.manualUnitPriceMinor === 0 || ((item.manualUnitPriceMinor === null || item.manualUnitPriceMinor === undefined) && item.manualAmountMinor === 0);
+  const initialFreeOffer = ov && ov.freeOffer !== undefined ? !!ov.freeOffer : isExistingFree;
+  const initialManualVal = ov && ov.manualAmount !== undefined ? ov.manualAmount : (!isExistingFree ? (item.manualUnitPriceMinor !== null && item.manualUnitPriceMinor !== undefined ? (item.manualUnitPriceMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (item.manualAmountMinor !== null && item.manualAmountMinor !== undefined ? (item.manualAmountMinor / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "")) : "");
+  const body = assignEditorHtml(p, ov ? ov.qty : fmtQtyUnit(item.quantity, p.unit), curStore, available, currentPrice ? currentPrice.amountMinor : null, initialManualVal, initialFreeOffer);
   let listPriceState = null;
   modal("Modifica assegnazioni", body, [{ label: "Annulla", class: "btn-plain", action: () => closeModal() }, { label: "Salva modifiche", class: "btn-primary", action: async () => {
     const q = parseQty($("#quickQty").value);
@@ -1159,15 +1205,21 @@ export async function openQuickEdit(itemId, ov = null) {
       showToast("Controlla il prezzo di listino inserito.");
       return;
     }
-    const manVal = $("#manualPriceInput")?.value.trim() ?? "";
-    const manMinor = eurosFromInput(manVal);
-    if (Number.isNaN(manMinor)) {
-      showToast("Controlla il prezzo unitario manuale inserito.");
-      return;
+    const isFreeOffer = !!$("#manualFreeOffer")?.checked;
+    let validManMinor = null;
+    if (isFreeOffer) {
+      validManMinor = 0;
+    } else {
+      const manVal = $("#manualPriceInput")?.value.trim() ?? "";
+      const manMinor = eurosFromInput(manVal);
+      if (Number.isNaN(manMinor)) {
+        showToast("Controlla il prezzo unitario manuale inserito.");
+        return;
+      }
+      validManMinor = manMinor !== null && manMinor > 0 ? manMinor : null;
     }
     if (sid && listPriceState) listPriceState.editedPrices.set(sid, listMinor);
     if (listPriceState) await saveEditedListPrices(p.id, listPriceState.editedPrices);
-    const validManMinor = manMinor !== null && manMinor > 0 ? manMinor : null;
     item.quantity = q;
     item.storeId = sid;
     item.manualUnitPriceMinor = validManMinor;
@@ -1186,6 +1238,6 @@ export async function openQuickEdit(itemId, ov = null) {
   listPriceState = wireListPrice(p, prices);
   wireQuickQty(p);
   wireAmount(p, prices);
-  wireManualAmount(initialManualVal);
+  wireManualAmount(initialManualVal, initialFreeOffer);
   fitStoreChipLabels($("#modalRoot"));
 }

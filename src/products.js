@@ -247,7 +247,7 @@ export async function openProductForm(productId, returnPage = "products", return
     return { ...s, menuName: s.name, labelHtml: nameHtml, menuHtml: nameHtml };
   });
   const initialDisplayUnit = displayUnit(initialSalesUnit, initialPackaging);
-  const addListBoxHtml = `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-add-fields is-inactive" id="addNewProdFields"><div class="new-prod-store-row">${customDropdown("addNewProdStore", initialAddStore, addStoreOptions, true, true)}</div><div class="new-prod-qty-row" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0<br>[<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialSalesUnit))}" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div><div class="new-prod-discount-row manual-amount-box" id="addNewProdDiscountRow"><label for="addNewProdDiscount">Prezzo Unit.<br><strong>SCONTATO</strong></label><div class="manual-input-wrap"><div class="name-box"><button type="button" class="manual-price-clear" id="addNewProdDiscountClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="addNewProdDiscount" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdDiscountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdDiscountOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span></span></div></div></div></div>`;
+  const addListBoxHtml = `<div class="new-prod-add-list-box" id="addNewProdListBox"><label class="check-line new-prod-add-list-opt" for="addNewProdToList"><input type="checkbox" id="addNewProdToList"><span>Aggiungi alla lista della spesa</span></label><div class="new-prod-add-fields is-inactive" id="addNewProdFields"><div class="new-prod-store-row">${customDropdown("addNewProdStore", initialAddStore, addStoreOptions, true, true)}</div><div class="new-prod-qty-row" id="addNewProdQtyRow"><label for="addNewProdQty">Quantit\xE0<br>[<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span>]</label><div class="qty-row new-prod-qty-ctrl"><div class="name-box"><input id="addNewProdQty" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" translate="no" spellcheck="false" value="${esc(fmtQtyUnit(1, initialSalesUnit))}" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdQtyNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdQtyOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><button type="button" id="addNewProdQtyMinus" aria-label="Diminuisci quantit\xE0" disabled>\u2212</button><button type="button" id="addNewProdQtyPlus" aria-label="Aumenta quantit\xE0" disabled>\uFF0B</button></div></div><div class="new-prod-discount-row manual-amount-box" id="addNewProdDiscountRow"><label for="addNewProdDiscount">Prezzo Unit.<br><strong>SCONTATO</strong></label><div class="manual-input-wrap"><div class="name-box"><button type="button" class="manual-price-clear" id="addNewProdDiscountClear" aria-label="Cancella prezzo scontato" title="Cancella prezzo scontato" hidden>${SVG_CIRCLE_X}</button><input id="addNewProdDiscount" type="text" inputmode="decimal" enterkeyhint="done" maxlength="8" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" disabled readonly tabindex="-1"><button type="button" class="name-no" id="addNewProdDiscountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button><button type="button" class="name-ok" id="addNewProdDiscountOk" aria-label="Conferma" title="Conferma">${SVG_CHK}</button></div><span class="price-eur">\u20AC/<span class="new-prod-qty-unit">${esc(initialDisplayUnit)}</span></span></div></div><div class="new-prod-free-offer-row"><label class="check-line free-offer-opt" for="addNewProdFreeOffer"><input type="checkbox" id="addNewProdFreeOffer" disabled tabindex="-1"><span>Articolo in offerta gratuita</span></label></div></div></div>`;
   const packagingTipHtml = `<div class="info-pop tip-pop" id="prodPackagingTip" hidden><div>Alcuni esempi:</div><table class="tip-examples-table"><thead><tr><th>ARTICOLO</th><th>IMBALLO</th></tr></thead><tbody><tr><td>Patate sfuse</td><td>Sfuso (al kg)</td></tr><tr><td>Patate in rete da 2kg</td><td>Confezione (2kg)</td></tr><tr><td>Uova sfuse</td><td>Sfuso (al pz)</td></tr><tr><td>Uova in cartone 6pz</td><td>Confezione (6pz)</td></tr><tr><td>Cassa 6 Bott. x 2lt</td><td>Confezione (12lt)</td></tr><tr><td>Birra 3 Bott. x 33cl</td><td>Confezione (99cl)</td></tr></tbody></table></div>`;
   const body = `<div class="product-editor"><form id="productForm"><div class="product-main-card">
     ${initFields.isLegacy ? `<div class="prod-legacy-note">Articolo da versione precedente (<strong>${esc(initFields.legacyName)}</strong>): completa i campi qui sotto per uniformare la descrizione.</div>` : ""}
@@ -345,11 +345,13 @@ export async function openProductForm(productId, returnPage = "products", return
   const addQtyOk = $("#addNewProdQtyOk");
   const addQtyMinus = $("#addNewProdQtyMinus");
   const addQtyPlus = $("#addNewProdQtyPlus");
+  const addDiscRow = $("#addNewProdDiscountRow");
   const addDiscInp = $("#addNewProdDiscount");
   const addDiscBox = addDiscInp?.closest(".name-box");
   const addDiscClear = $("#addNewProdDiscountClear");
   const addDiscNo = $("#addNewProdDiscountNo");
   const addDiscOk = $("#addNewProdDiscountOk");
+  const addFreeCb = $("#addNewProdFreeOffer");
   let savedAddQty = addQtyInp ? addQtyInp.value.trim() : fmtQtyUnit(1, initialSalesUnit);
   let savedAddDisc = "";
   let lastConfezioneUnit = initialPackaging === "confezione" ? initialPackUnit : "kg";
@@ -1009,7 +1011,7 @@ export async function openProductForm(productId, returnPage = "products", return
   };
   const syncAddDiscState = (isEditing) => {
     if (!addDiscInp || !addDiscBox) return;
-    const active = !!addListCb?.checked;
+    const active = !!addListCb?.checked && !addFreeCb?.checked;
     const editing = active && !!isEditing;
     addDiscBox.classList.toggle("editing", editing);
     const isPos = hasPositiveAddDisc(addDiscInp.value);
@@ -1023,6 +1025,8 @@ export async function openProductForm(productId, returnPage = "products", return
   const syncAddQtyRow = () => {
     if (!addListCb || !addQtyRow || !addQtyInp) return;
     const active = !!addListCb.checked;
+    const isFree = active && !!addFreeCb?.checked;
+    const discActive = active && !isFree;
     addListBox?.classList.toggle("is-active", active);
     addFieldsWrap?.classList.toggle("is-inactive", !active);
     if (addStoreTrigger) {
@@ -1037,12 +1041,17 @@ export async function openProductForm(productId, returnPage = "products", return
     addQtyInp.setAttribute("aria-disabled", active ? "false" : "true");
     if (addQtyMinus) addQtyMinus.disabled = !active;
     if (addQtyPlus) addQtyPlus.disabled = !active;
+    if (addFreeCb) {
+      addFreeCb.disabled = !active;
+      addFreeCb.tabIndex = active ? 0 : -1;
+    }
+    addDiscRow?.classList.toggle("is-free-disabled", isFree);
     if (addDiscInp) {
-      addDiscInp.disabled = !active;
-      addDiscInp.readOnly = !active;
-      addDiscInp.tabIndex = active ? 0 : -1;
-      addDiscInp.setAttribute("aria-disabled", active ? "false" : "true");
-      if (!active && document.activeElement === addDiscInp) addDiscInp.blur();
+      addDiscInp.disabled = !discActive;
+      addDiscInp.readOnly = !discActive;
+      addDiscInp.tabIndex = discActive ? 0 : -1;
+      addDiscInp.setAttribute("aria-disabled", discActive ? "false" : "true");
+      if (!discActive && document.activeElement === addDiscInp) addDiscInp.blur();
     }
     if (!active) {
       addQtyBox?.classList.remove("editing");
@@ -1059,6 +1068,9 @@ export async function openProductForm(productId, returnPage = "products", return
         addQtyInp.value = fmtQtyUnit(1, curUnit);
         savedAddQty = addQtyInp.value;
       }
+      syncAddQtyRow();
+    });
+    addFreeCb?.addEventListener("change", () => {
       syncAddQtyRow();
     });
     selectAllOnFocus(addQtyInp);
@@ -1209,7 +1221,7 @@ export async function openProductForm(productId, returnPage = "products", return
       addDiscClear?.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!addListCb.checked) return;
+        if (!addListCb.checked || addFreeCb?.checked) return;
         savedAddDisc = "";
         addDiscInp.value = "";
         syncAddDiscState(false);
@@ -1263,6 +1275,7 @@ export async function openProductForm(productId, returnPage = "products", return
         addStore: $("#addNewProdStore")?.value ?? "",
         addQty: $("#addNewProdQty")?.value ?? "",
         addDiscount: $("#addNewProdDiscount")?.value ?? "",
+        addFreeOffer: !!$("#addNewProdFreeOffer")?.checked,
         stores: [...$("#modalRoot").querySelectorAll("[data-store-check]")].map((cb) => ({ id: cb.dataset.storeCheck, checked: cb.checked, price: $("#price-" + cb.dataset.storeCheck)?.value ?? "" }))
       };
       const reopenProduct = async (cat) => {
@@ -1286,6 +1299,8 @@ export async function openProductForm(productId, returnPage = "products", return
         if (addQ && draft.addQty) addQ.value = draft.addQty;
         const addD = $("#addNewProdDiscount");
         if (addD && draft.addDiscount) addD.value = draft.addDiscount;
+        const addF = $("#addNewProdFreeOffer");
+        if (addF) addF.checked = !!draft.addFreeOffer;
         const addCb = $("#addNewProdToList");
         if (addCb) {
           addCb.checked = !!draft.addToList;
@@ -1508,15 +1523,20 @@ export async function saveProductForm(productId, returnPage, returnCategoryId = 
       qtyEl?.focus();
       return;
     }
-    const discEl = $("#addNewProdDiscount");
-    const rawDisc = discEl ? discEl.value.trim() : "";
-    const discMinor = eurosFromInput(rawDisc);
-    if (Number.isNaN(discMinor)) {
-      showToast("Controlla il prezzo scontato inserito.");
-      discEl?.focus();
-      return;
+    const addFreeOffer = !!$("#addNewProdFreeOffer")?.checked;
+    if (addFreeOffer) {
+      addDiscountUnitMinor = 0;
+    } else {
+      const discEl = $("#addNewProdDiscount");
+      const rawDisc = discEl ? discEl.value.trim() : "";
+      const discMinor = eurosFromInput(rawDisc);
+      if (Number.isNaN(discMinor)) {
+        showToast("Controlla il prezzo scontato inserito.");
+        discEl?.focus();
+        return;
+      }
+      addDiscountUnitMinor = discMinor !== null && discMinor > 0 ? discMinor : null;
     }
-    addDiscountUnitMinor = discMinor !== null && discMinor > 0 ? discMinor : null;
   }
   const products = await getAll("products");
   if (products.some((x) => x.id !== targetProductId && x.nameNormalized === norm(name))) {
