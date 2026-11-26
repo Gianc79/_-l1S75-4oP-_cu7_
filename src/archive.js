@@ -1515,13 +1515,15 @@ export async function openArchiveWindow(opts = {}) {
       dlgTitle,
       msg,
       isAll ? (targetReceipts.length === 1 ? "Elimina" : "Elimina tutti") : "Elimina",
-      { closeButton: false, backdropClose: false, keepModalOnClose: true, keepOnConfirm: true, onClose: () => openArchiveWindow(currentArchiveOpts()) }
+      { overlay: true, closeButton: false, backdropClose: false }
     );
     if (!yes) return;
     const tx = state.db.transaction("archivedReceipts", "readwrite");
     const os = tx.objectStore("archivedReceipts");
     for (const r of targetReceipts) os.delete(r.id);
     await txDone(tx);
+    state.currentModal = null;
+    state.currentModalKeep = false;
     await openArchiveWindow({
       storeFilter: "all",
       searchField,
