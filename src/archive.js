@@ -826,12 +826,20 @@ export async function openArchiveWindow(opts = {}) {
       ariaLabel: "Cerca per nome spesa nell'archivio spese",
       maxLength: 20
     },
+    category: {
+      key: "category",
+      shortLabel: "Reparto",
+      label: "Nome reparto",
+      placeholder: "Cerca nome reparto\u2026",
+      ariaLabel: "Cerca per nome reparto nell'archivio spese",
+      maxLength: 25
+    },
     brand: {
       key: "brand",
       shortLabel: "Marca",
-      label: "Marca",
-      placeholder: "Cerca marca\u2026",
-      ariaLabel: "Cerca per marca nell'archivio spese",
+      label: "Nome marca",
+      placeholder: "Cerca nome marca\u2026",
+      ariaLabel: "Cerca per nome marca nell'archivio spese",
       maxLength: 25
     },
     item: {
@@ -1025,7 +1033,7 @@ export async function openArchiveWindow(opts = {}) {
       <div class="archive-search-combo${searchQuery.trim() ? " has-query" : ""}" id="archiveSearchCombo">
         <div class="store-filter-wrap archive-search-scope-wrap" id="archiveSearchScopeWrap">
           <button type="button" class="store-filter-trigger archive-search-scope-btn" id="archiveSearchScopeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Cerca per: ${esc(curSearchMeta.label)}" title="Scegli il campo di ricerca">
-            <span id="archiveSearchScopeLabel">${esc(curSearchMeta.shortLabel)}</span>
+            <span class="archive-scope-label-box"><span class="archive-scope-sizer" aria-hidden="true">Articolo</span><span id="archiveSearchScopeLabel">${esc(curSearchMeta.shortLabel)}</span></span>
             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="store-filter-chevron"><path d="m6 9 6 6 6-6"/></svg>
           </button>
           <div class="store-filter-menu archive-search-scope-menu" id="archiveSearchScopeMenu" role="listbox" aria-label="Cerca per" hidden>
@@ -1047,7 +1055,7 @@ export async function openArchiveWindow(opts = {}) {
       <div class="saved-list-head list-section-banner archive-sticky-banner">
         <div class="saved-list-head-left">
           <span class="saved-list-icon archive-section-icon">${RECEIPT_ICON_SVG}</span>
-          <span class="saved-list-title" id="archiveSectionTitle">Spese archiviate</span>
+          <span class="saved-list-title" id="archiveSectionTitle">I miei scontrini</span>
           <span class="title-count-badge" id="archiveCountBadge">${receipts.length}</span>
         </div>
         <button type="button" class="header-icon trash-mini" id="delAllArchivedBtn" ${receipts.length ? "" : "disabled"} aria-label="Elimina tutte le spese archiviate" title="Elimina tutte le spese archiviate">${TRASH_OFFICE}</button>
@@ -1072,7 +1080,7 @@ export async function openArchiveWindow(opts = {}) {
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche cercare per nome spesa, nome articolo o marca (per ricostruire lo storico dei prezzi).</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Archivia la spesa corrente o clicca su una spesa archiviata per vederne i dettagli.<br>Scorri verso destra per eliminarla.<br>Puoi anche cercare per nome spesa, nome reparto, nome marca o nome articolo (per ricostruire lo storico dei prezzi).</div>`);
   }
 
   const container = $("#archivedReceiptsContainer");
@@ -1158,9 +1166,11 @@ export async function openArchiveWindow(opts = {}) {
       for (const r of filtered) {
         for (const it of (r.items || [])) {
           const resolved = resolveReceiptItem(it, pMap, cMap);
-          const itemHay = searchField === "brand"
-            ? searchNorm(resolved.resolvedBrand || "")
-            : searchNorm(resolved.resolvedItemName || resolved.resolvedTitle || it.productNameSnapshot || "");
+          const itemHay = searchField === "category"
+            ? searchNorm(resolved.resolvedCategoryName || "")
+            : searchField === "brand"
+              ? searchNorm(resolved.resolvedBrand || "")
+              : searchNorm(resolved.resolvedItemName || resolved.resolvedTitle || it.productNameSnapshot || "");
           if (itemHay && tokens.every((tok) => itemHay.includes(tok))) {
             matchedItems.push({ receipt: r, item: resolved });
           }
@@ -1168,9 +1178,11 @@ export async function openArchiveWindow(opts = {}) {
       }
       if (countBadge) countBadge.textContent = String(matchedItems.length);
       if (!matchedItems.length) {
-        const emptyMsg = searchField === "brand"
-          ? "Nessun articolo di questa marca trovato nell'archivio spese."
-          : "Nessun articolo trovato nell'archivio spese.";
+        const emptyMsg = searchField === "category"
+          ? "Nessun articolo di questo reparto trovato nell'archivio spese."
+          : searchField === "brand"
+            ? "Nessun articolo di questa marca trovato nell'archivio spese."
+            : "Nessun articolo trovato nell'archivio spese.";
         container.innerHTML = `<div class="empty">${emptyMsg}</div>`;
         return;
       }

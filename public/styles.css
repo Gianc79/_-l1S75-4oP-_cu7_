@@ -2164,9 +2164,9 @@ input[type=search].search-input:placeholder-shown,
 .archive-date-select:focus,.archive-date-input:focus{outline:none;border-color:#174f86;background:#ffffff;box-shadow:0 0 0 2px rgba(23,79,134,.14)}
 .archive-date-field-row{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:8px}
 .archive-date-field-row label{margin:0;font-size:13px;font-weight:750;color:#174f86}
-.archive-date-menu-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:6px;border-top:1px dashed #cddce9}
+.archive-date-menu-foot{display:flex;align-items:center;justify-content:center;gap:8px;padding-top:7px;border-top:1px dashed #cddce9}
 .archive-date-menu-foot[hidden]{display:none!important}
-.archive-date-apply-btn{min-height:34px!important;height:34px;padding:0 14px!important;border-radius:9px!important;font-size:13px!important;flex:0 0 auto!important;width:auto!important}
+.archive-date-apply-btn{min-height:36px!important;height:36px;min-width:156px;width:62%!important;max-width:220px;padding:0 22px!important;border-radius:10px!important;font-size:13.5px!important;flex:0 0 auto!important}
 @media(max-width:355px){
   .archive-date-mode-btn{font-size:11.5px;padding:4px 2px}
 }
@@ -2204,7 +2204,10 @@ input[type=search].search-input:placeholder-shown,
 .archive-search-combo{position:relative;display:flex;align-items:stretch;height:36px;background:#ffffff;border:1.5px solid #bfcdd6;border-radius:10px;box-shadow:inset 0 1px 0 #fff,0 2px 0 #adc0cc,0 3px 6px rgba(15,40,65,.08);transition:border-color .15s ease,box-shadow .15s ease}
 .archive-search-combo:focus-within,.archive-search-combo.has-query{border-color:#174f86;box-shadow:0 0 0 2px rgba(23,79,134,.14),0 2px 0 #8fb4d6}
 .archive-search-scope-wrap{position:relative;flex:0 0 auto;display:flex;height:100%}
-.archive-filter-bar .archive-search-scope-btn{width:auto;min-height:100%;height:100%;padding:0 7px 0 10px;gap:4px;border:0;border-right:1.5px solid #c2d6ea;border-radius:8.5px 0 0 8.5px;background:linear-gradient(180deg,#eef6ff 0%,#d7e9fc 100%);color:#123e6d;font-size:12.5px;font-weight:800;box-shadow:none;white-space:nowrap;flex:0 0 auto}
+.archive-filter-bar .archive-search-scope-btn{width:auto;min-height:100%;height:100%;padding:0 7px 0 10px;gap:4px;border:0;border-right:1.5px solid #c2d6ea;border-radius:8.5px 0 0 8.5px;background:linear-gradient(180deg,#eef6ff 0%,#d7e9fc 100%);color:#123e6d;font-size:12.5px;font-weight:800;box-shadow:none;white-space:nowrap;flex:0 0 auto;justify-content:space-between}
+.archive-scope-label-box{position:relative;display:inline-flex;align-items:center;flex:0 0 auto}
+.archive-scope-sizer{visibility:hidden;pointer-events:none;user-select:none;white-space:nowrap;padding-right:2px}
+#archiveSearchScopeLabel{position:absolute;inset:0;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
 .archive-filter-bar .archive-search-scope-btn:hover{background:linear-gradient(180deg,#f5faff 0%,#dfeefc 100%)}
 .archive-filter-bar .archive-search-scope-btn[aria-expanded="true"]{border:0;border-right:1.5px solid #174f86;border-radius:8.5px 0 0 8.5px;background:linear-gradient(180deg,#dcecfd 0%,#c4dffb 100%);color:#0f3a66;box-shadow:none}
 .archive-filter-bar .archive-search-scope-btn .store-filter-chevron{width:14px;height:14px;margin-left:0;color:#174f86;flex:0 0 14px}
