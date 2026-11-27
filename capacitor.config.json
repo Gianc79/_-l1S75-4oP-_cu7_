@@ -1,0 +1,8 @@
+{
+  "appId": "it.spesasumisura.app",
+  "appName": "Spesa Su Misura",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

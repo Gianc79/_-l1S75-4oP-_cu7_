@@ -1,4 +1,6 @@
 // Router principale, inizializzazione app e blocco orientamento verticale
+import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import { state } from "./state.js";
 import { APP_VERSION, CART_CELEBRATION_DATA_URI, DB_VERSION } from "./data.js";
 import { $, esc } from "./calculations.js";
@@ -66,6 +68,10 @@ export async function init() {
     exitOverlayHiddenWhileBg = false;
   };
   const attemptExitApp = () => {
+    if (Capacitor.isNativePlatform()) {
+      App.exitApp();
+      return;
+    }
     const inPwa = isInstalledPwa();
     clearTimeout(exitFallbackTimer);
     let closedOrHidden = false;
