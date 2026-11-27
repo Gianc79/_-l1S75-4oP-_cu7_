@@ -1,0 +1,68 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Scarica codice dal repository
+        uses: actions/checkout@v4
+
+      - name: Configura Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configura Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Installa dipendenze e compila web app
+        run: |
+          npm install
+          npm run build
+
+      - name: Genera progetto Android e icone
+        run: |
+          npx cap add android
+          if [ -f "icon-512.png" ]; then
+            mkdir -p resources
+            cp icon-512.png resources/icon.png
+            npx --yes @capacitor/assets generate --android
+          fi
+          npx cap sync android
+
+      - name: Compila APK Android con chiave fissa
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/fixed-debug.keystore
+          keytool -list -keystore android/app/fixed-debug.keystore -storepass android
+          cat << 'EOF' >> android/app/build.gradle
+
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file('fixed-debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+          }
+          EOF
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Carica APK scaricabile
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpesaSuMisura-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
