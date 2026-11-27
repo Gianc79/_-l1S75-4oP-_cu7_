@@ -55,7 +55,7 @@ export async function init() {
     state.storesSelectedFilter = "all";
     setPage(b.dataset.page);
   }));
-  $("#saveBackupBtn").addEventListener("click", exportBackup);
+  $("#saveBackupBtn").addEventListener("click", () => exportBackup());
   $("#infoHeaderBtn").addEventListener("click", () => setPage("other"));
   let exitFallbackTimer = null;
   let exitOverlayHiddenWhileBg = false;

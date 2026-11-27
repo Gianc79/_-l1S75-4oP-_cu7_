@@ -1,4 +1,7 @@
 // Storico liste salvate, guida/informazioni e backup/ripristino dati
+import { Capacitor } from "@capacitor/core";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { state } from "./state.js";
 import { APP_NAME, APP_VERSION, GUIDE_HTML, MAX_SAVED_LISTS, PENCIL_SVG, SVG_CHK, SVG_X, TRASH_OFFICE, infoBtn, stores } from "./data.js";
 import { $, canonicalSavedItem, esc, norm, now, uuid } from "./calculations.js";
@@ -276,10 +279,13 @@ export async function renderOther() {
 }
 
 export async function exportBackup(options = {}) {
+  const opts = options && typeof options === "object" && !(options instanceof Event) ? options : {};
   const data = await allData(), payload = { format: "personal-shopping-assistant", formatVersion: 1, appVersion: APP_VERSION, archiveId: (await getOne("meta", "archiveId"))?.value || uuid(), exportedAt: now(), data };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const defaultName = options.suggestedName || `spesasumisura-backup-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
-  if (typeof window.showSaveFilePicker === "function") {
+  const jsonText = JSON.stringify(payload, null, 2);
+  const blob = new Blob([jsonText], { type: "application/json" });
+  const defaultName = opts.suggestedName || `spesasumisura-backup-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
+  const isNative = Capacitor.isNativePlatform();
+  if (!isNative && typeof window.showSaveFilePicker === "function") {
     try {
       const handle = await window.showSaveFilePicker({ suggestedName: defaultName, types: [{ description: "Backup SpesaSuMisura (JSON)", accept: { "application/json": [".json"] } }] });
       const writable = await handle.createWritable();
@@ -289,10 +295,11 @@ export async function exportBackup(options = {}) {
       return true;
     } catch (e) {
       if (e?.name === "AbortError") return false;
-      showToast("Impossibile salvare il backup: " + (e?.message || "errore sconosciuto"));
-      return false;
     }
   }
+  const helperNote = isNative
+    ? "Scegli il nome del file e premi Salva per scegliere dove salvare o condividere il backup sul dispositivo."
+    : "Il browser gestisce la destinazione del download. Nei browser che non consentono l'accesso diretto ai file, l'app non pu\xF2 garantire la sovrascrittura di un file gi\xE0 esistente.";
   return await new Promise((resolve) => {
     let settled = false;
     const finish = (value) => {
@@ -301,7 +308,7 @@ export async function exportBackup(options = {}) {
         resolve(value);
       }
     };
-    modal(options.title || "Salva backup con nome", `<p>Scegli il nome con cui salvare il backup dei tuoi dati.</p><div class="field"><label for="backupFileName">Nome del file</label><input id="backupFileName" type="text" maxlength="120" value="${esc(defaultName)}" autocomplete="off"></div><p class="small muted">Il browser gestisce la destinazione del download. Nei browser che non consentono l'accesso diretto ai file, l'app non pu\xF2 garantire la sovrascrittura di un file gi\xE0 esistente.</p>`, [
+    modal(opts.title || "Salva backup con nome", `<p>Scegli il nome con cui salvare il backup dei tuoi dati.</p><div class="field"><label for="backupFileName">Nome del file</label><input id="backupFileName" type="text" maxlength="120" value="${esc(defaultName)}" autocomplete="off"></div><p class="small muted">${helperNote}</p>`, [
       { label: "Annulla", class: "btn-plain", action: () => {
         closeModal(false);
         finish(false);
@@ -313,14 +320,65 @@ export async function exportBackup(options = {}) {
           return;
         }
         if (!/\.json$/i.test(fileName)) fileName += ".json";
+        if (isNative) {
+          try {
+            const saved = await Filesystem.writeFile({
+              path: fileName,
+              data: jsonText,
+              directory: Directory.Cache,
+              encoding: Encoding.UTF8
+            });
+            const fileUri = saved?.uri || (await Filesystem.getUri({ path: fileName, directory: Directory.Cache })).uri;
+            let shared = false;
+            try {
+              await Share.share({
+                title: fileName,
+                files: [fileUri],
+                dialogTitle: "Salva backup"
+              });
+              shared = true;
+            } catch (shareErr) {
+              const msg = String(shareErr?.message || "").toLowerCase();
+              if (msg.includes("cancel")) {
+                closeModal(false);
+                finish(false);
+                return;
+              }
+            }
+            if (shared) {
+              closeModal(false);
+              showToast("Salvataggio eseguito");
+              finish(true);
+              return;
+            }
+            await Filesystem.writeFile({
+              path: fileName,
+              data: jsonText,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true
+            });
+            closeModal(false);
+            showToast("Backup salvato in Documenti");
+            finish(true);
+            return;
+          } catch (e) {
+            closeModal(false);
+            showToast("Impossibile salvare il backup: " + (e?.message || "errore sconosciuto"));
+            finish(false);
+            return;
+          }
+        }
         try {
           const url = URL.createObjectURL(blob), a = document.createElement("a");
           a.href = url;
           a.download = fileName;
+          a.rel = "noopener";
+          a.style.display = "none";
           document.body.appendChild(a);
           a.click();
           a.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 1e3);
+          setTimeout(() => URL.revokeObjectURL(url), 6e4);
           closeModal(false);
           showToast("Salvataggio eseguito");
           finish(true);
