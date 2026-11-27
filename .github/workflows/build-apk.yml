@@ -30,7 +30,7 @@ jobs:
           npm install
           npm run build
 
-      - name: Genera progetto Android e icone
+      - name: Genera progetto Android, icone e schermo intero immersivo
         run: |
           npx cap add android
           if [ -f "icon-512.png" ]; then
@@ -38,6 +38,43 @@ jobs:
             cp icon-512.png resources/icon.png
             npx --yes @capacitor/assets generate --android
           fi
+          cat << 'EOF' > android/app/src/main/java/it/spesasumisura/app/MainActivity.java
+          package it.spesasumisura.app;
+
+          import android.os.Bundle;
+          import androidx.core.view.WindowCompat;
+          import androidx.core.view.WindowInsetsCompat;
+          import androidx.core.view.WindowInsetsControllerCompat;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  hideSystemBars();
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) {
+                      hideSystemBars();
+                  }
+              }
+
+              private void hideSystemBars() {
+                  WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+                  WindowInsetsControllerCompat controller =
+                      WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+                  if (controller != null) {
+                      controller.hide(WindowInsetsCompat.Type.systemBars());
+                      controller.setSystemBarsBehavior(
+                          WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                      );
+                  }
+              }
+          }
+          EOF
           npx cap sync android
 
       - name: Compila APK Android con chiave fissa
