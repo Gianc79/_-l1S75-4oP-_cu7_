@@ -159,7 +159,7 @@ export async function renderStores() {
     const container = $("#storesListContainer");
     container.innerHTML = filtered.length ? filtered.map((x) => {
       const n = cnt(x.id), isDef = x.id === curStg.defaultStoreId;
-      return swipeWrap(`<div class="list-row compact${isDef ? " is-default" : ""}" data-delete-store="${x.id}"><button type="button" class="row-button" data-store="${x.id}"><span class="row-name">${storeChipHtml(x)}</span><div class="row-sub">${n} ${n === 1 ? "reparto" : "reparti"}</div></button>${isDef ? '<span class="badge-inuse badge-default">PREDEFINITO</span>' : ""}</div>`, "swipe-compact");
+      return swipeWrap(`<div class="list-row compact${isDef ? " is-default" : ""}" data-delete-store="${x.id}"><button type="button" class="row-button" data-store="${x.id}"><span class="row-name">${storeChipHtml(x)}</span><div class="store-sub-row"><div class="row-sub">${n} ${n === 1 ? "reparto" : "reparti"}</div>${isDef ? '<span class="badge-inuse badge-default">PREDEFINITO</span>' : ""}</div></button></div>`, "swipe-compact");
     }).join("") : `<div class="empty">${ss.length ? "Nessun supermercato per questo filtro." : "Non hai ancora creato supermercati. Puoi usare la lista anche senza supermercati."}</div>`;
     container.querySelectorAll("[data-delete-store]").forEach((row) => {
       let timer = null, fired = false, downX = 0, downY = 0;
