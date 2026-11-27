@@ -154,7 +154,8 @@ export async function setDefaultStore(id) {
       const isDef = el.dataset.deleteStore === id;
       el.classList.toggle("is-default", isDef);
       const oldBadge = el.querySelector(".badge-default");
-      if (isDef && !oldBadge) el.insertAdjacentHTML("beforeend", '<span class="badge-inuse badge-default">PREDEFINITO</span>');
+      const subRow = el.querySelector(".store-sub-row") || el;
+      if (isDef && !oldBadge) subRow.insertAdjacentHTML("beforeend", '<span class="badge-inuse badge-default">PREDEFINITO</span>');
       else if (!isDef && oldBadge) oldBadge.remove();
     });
   } else {
