@@ -2071,11 +2071,11 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       const amtFormatted = fmtEditableAmt(amt);
       return swipeWrap(`<div class="receipt-adj-item-compact ${isAdd ? "is-add" : "is-deduct"}" data-adj-row-id="${esc(adj.id)}">
         <div class="receipt-adj-row-main">
-          <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
-          <div class="receipt-adj-row-right">
-            <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(amt)}</strong>
+          <div class="receipt-adj-row-left">
+            <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
             <button type="button" class="row-edit-inline receipt-adj-edit-btn" data-adj-edit-id="${esc(adj.id)}" aria-label="Modifica importo ${esc(adj.label)}" title="Modifica importo">${PENCIL_SVG}</button>
           </div>
+          <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(amt)}</strong>
         </div>
         <div class="receipt-adj-inline-edit" data-adj-editor-for="${esc(adj.id)}" hidden>
           <div class="receipt-adj-edit-field ${isAdd ? "is-add" : "is-deduct"}">
@@ -2191,7 +2191,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
             </div>
             <span class="receipt-adj-eur">\u20AC</span>
           </div>
-          <button type="button" class="btn btn-primary btn-small receipt-adj-submit ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="addAdjBtn" disabled>${adjType === "deduct" ? "\u2212 Detrai" : "+ Inserisci"}</button>
+          <button type="button" class="btn btn-primary btn-small receipt-adj-submit ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="addAdjBtn" disabled>${adjType === "deduct" ? "\u2212 Detrai" : "+ Aggiungi"}</button>
         </div>
         <div class="receipt-adj-records" id="receiptAdjRecords"${adjCardRowsHtml ? "" : " hidden"}>${adjCardRowsHtml}</div>
       </div>
@@ -2535,7 +2535,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       adjSignEl.classList.toggle("is-deduct", adjType === "deduct");
     }
     if (addAdjBtn) {
-      addAdjBtn.textContent = adjType === "deduct" ? "\u2212 Detrai" : "+ Inserisci";
+      addAdjBtn.textContent = adjType === "deduct" ? "\u2212 Detrai" : "+ Aggiungi";
       addAdjBtn.classList.toggle("is-add", adjType === "add");
       addAdjBtn.classList.toggle("is-deduct", adjType === "deduct");
     }
