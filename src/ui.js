@@ -1451,12 +1451,27 @@ export function wireSingleFilter(id, { onSelect, searchMaxLength = null, searchU
     const vis = applyDropdownSearch(menu, rows, ds.value, (row) => row.dataset.filterLabel, { insertBefore: emptyMsg });
     if (emptyMsg) emptyMsg.hidden = !q || vis > 0;
   };
+  const scrollToSelected = () => {
+    if (menu.hidden || (ds && ds.value)) return;
+    const sel = menu.querySelector(".custom-dropdown-option.selected:not([hidden])");
+    if (!sel || sel.dataset.value === "all") {
+      menu.scrollTop = 0;
+      return;
+    }
+    const sw = menu.querySelector(".dd-search-wrap");
+    const swH = sw ? sw.offsetHeight : 0;
+    const selTop = sel.getBoundingClientRect().top - menu.getBoundingClientRect().top + menu.scrollTop;
+    const visibleH = Math.max(0, menu.clientHeight - swH);
+    const offset = visibleH > sel.offsetHeight ? Math.floor((visibleH - sel.offsetHeight) / 2) : 4;
+    menu.scrollTop = Math.max(0, selTop - swH - Math.max(4, offset));
+  };
   if (dcl) {
     dcl.addEventListener("mousedown", (e) => e.preventDefault());
     dcl.addEventListener("click", (e) => {
       e.stopPropagation();
       ds.value = "";
       applySearch();
+      scrollToSelected();
     });
   }
   ds?.addEventListener("input", applySearch);
@@ -1483,10 +1498,13 @@ export function wireSingleFilter(id, { onSelect, searchMaxLength = null, searchU
       const navTop = !mr ? (document.querySelector(".bottom-nav")?.getBoundingClientRect()?.top ?? window.innerHeight) : mr.bottom;
       const below = (mr ? mr.bottom : navTop - 8) - r.bottom;
       menu.style.maxHeight = Math.max(180, Math.min(480, Math.floor(below - 10))) + "px";
-      menu.scrollTop = 0;
     }
     menu.hidden = !willOpen;
     trigger.setAttribute("aria-expanded", String(willOpen));
+    if (willOpen) {
+      scrollToSelected();
+      requestAnimationFrame(scrollToSelected);
+    }
   });
   menu.addEventListener("click", (e) => e.stopPropagation());
   menu.querySelectorAll(`[data-filter-opt="${id}"]`).forEach((btn) => {

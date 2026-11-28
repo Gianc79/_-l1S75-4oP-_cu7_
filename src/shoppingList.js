@@ -3,7 +3,7 @@ import { state } from "./state.js";
 import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_CIRCLE_X, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
 import { $, displayUnit, esc, eurosFromInput, filterBySearch, fitStoreChipLabels, fmtQtyUnit, money, moneyPerUnit, norm, now, parseQty, productDisplayParts, productSearchText, qtyValid, quantityStepValue, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, activeList, allCategoriesSorted, allProductsSorted, allStoresSorted, delOne, getAll, getOne, putOne, replaceItems, settings, snapshotItems, storeIdsForProduct, txDone, visibleListItems } from "./storage.js";
-import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, infoPop, modal, multiFilterHtml, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateFloatingAddButton, updateScrollTopButton, updateSingleFilterUI, wireCustomDropdown, wireMultiFilter, wireSingleFilter } from "./ui.js";
+import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, customDropdown, infoPop, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateFloatingAddButton, updateScrollTopButton, updateSingleFilterUI, wireCustomDropdown, wireSingleFilter } from "./ui.js";
 import { currentSavedListId, isSavedListModified, listItemsForSave, openSavedListsWindow, saveListAs } from "./history.js";
 import { openArchiveCurrentListModal, openArchiveWindow } from "./archive.js";
 import { openProductForm } from "./products.js";
@@ -616,34 +616,53 @@ export function openListMenu() {
   }));
 }
 
-export async function renderList(keepFilterOpen = false) {
+export async function renderList() {
   const prevPageScroll = state.restoreListScroll ? state.listScrollY : window.scrollY;
   state.restoreListScroll = false;
-  const _pm = $("#storeFilterMenu"), prevScroll = _pm && !_pm.hidden ? _pm.scrollTop : 0;
-  const _ps = _pm && !_pm.hidden ? (_pm.querySelector(".dd-search")?.value || "") : "";
   const _cid = await currentSavedListId(), _cl = _cid ? await getOne("savedLists", _cid) : null;
-  const main = $("#appMain"), [items, products, cats, st, storeList, savedLists] = await Promise.all([activeItems(), getAll("products"), getAll("categories"), settings(), allStoresSorted(), getAll("savedLists")]);
+  const main = $("#appMain"), [items, products, cats, st, storeList, savedLists] = await Promise.all([activeItems(), getAll("products"), allCategoriesSorted(), settings(), allStoresSorted(), getAll("savedLists")]);
   const pMap = Object.fromEntries(products.map((p) => [p.id, p])), cMap = Object.fromEntries(cats.map((c) => [c.id, c])), sMap = Object.fromEntries(storeList.map((s) => [s.id, s]));
-  const storeItemCounts = { none: 0 };
-  for (const s of storeList) storeItemCounts[s.id] = 0;
-  for (const it of items) {
-    const key = it.storeId && sMap[it.storeId] ? it.storeId : "none";
-    storeItemCounts[key] = (storeItemCounts[key] || 0) + 1;
+  const validItems = items.filter((it) => !!pMap[it.productId]);
+  if (state.selectedStore === "none") state.selectedStore = "__none__";
+  if (typeof state.selectedStore !== "string" || (state.selectedStore !== "all" && state.selectedStore !== "__none__" && !sMap[state.selectedStore])) {
+    state.selectedStore = "all";
   }
-  const allFilterIds = storeList.map((s) => s.id).concat(["none"]);
-  const enabledFilterIds = allFilterIds.filter((id) => (storeItemCounts[id] || 0) > 0);
-  if (!Array.isArray(state.selectedStores)) state.selectedStores = ["all"];
-  state.selectedStores = state.selectedStores.filter((id) => id === "all" || id === "none" || storeList.some((x) => x.id === id));
-  if (!state.selectedStores.length) state.selectedStores = [];
-  const selectedSet = new Set(state.selectedStores);
-  const showAll = state.selectedStores.includes("all") || (enabledFilterIds.length > 0 && enabledFilterIds.every((id) => selectedSet.has(id)));
-  const visible = items.filter((i) => showAll ? true : selectedSet.has(i.storeId || "none"));
+  if (state.selectedCategory === "none") state.selectedCategory = "__none__";
+  if (typeof state.selectedCategory !== "string" || (state.selectedCategory !== "all" && state.selectedCategory !== "__none__" && !cMap[state.selectedCategory])) {
+    state.selectedCategory = "all";
+  }
+  state.selectedStores = state.selectedStore === "all" ? ["all"] : [state.selectedStore === "__none__" ? "none" : state.selectedStore];
+  const storeVal = state.selectedStore, catVal = state.selectedCategory;
+  const itemStoreKey = (it) => (it.storeId && sMap[it.storeId] ? it.storeId : "__none__");
+  const itemCatKey = (it) => {
+    const p = pMap[it.productId];
+    return p?.categoryId && cMap[p.categoryId] ? p.categoryId : "__none__";
+  };
+  const matchesStore = (it, sid) => sid === "all" || itemStoreKey(it) === sid;
+  const matchesCat = (it, cid) => cid === "all" || itemCatKey(it) === cid;
+  const storeOpts = [{ id: "__none__", label: "Senza supermercato", html: '<span style="font-style:italic">Senza supermercato</span>' }]
+    .concat(storeList.map((sto) => ({ id: sto.id, label: sto.name, html: storeHasColors(sto) ? storeChipHtml(sto) : "" })))
+    .map((o) => ({
+      ...o,
+      disabled: o.id !== storeVal && !validItems.some((it) => itemStoreKey(it) === o.id && matchesCat(it, catVal))
+    }));
+  const catOpts = [{ id: "__none__", label: "Senza reparto", html: '<span style="font-style:italic">Senza reparto</span>' }]
+    .concat(cats.map((c) => ({ id: c.id, label: c.name })))
+    .map((o) => ({
+      ...o,
+      disabled: o.id !== catVal && !validItems.some((it) => matchesStore(it, storeVal) && itemCatKey(it) === o.id)
+    }));
+  const showAllStores = storeVal === "all";
+  const showAllCats = catVal === "all";
+  const allStoresDisabled = storeOpts.every((o) => o.disabled);
+  const allCatsDisabled = catOpts.every((o) => o.disabled);
+  const visible = validItems.filter((i) => matchesStore(i, storeVal) && matchesCat(i, catVal));
   const routes = await getAll("storeCategoryRoutes");
   const routePosition = (storeId, catId) => routes.find((r) => r.storeId === storeId && r.categoryId === catId)?.position ?? 99999;
   visible.sort((a, b) => {
     const pa = pMap[a.productId], pb = pMap[b.productId];
     if (!pa || !pb) return 0;
-    if (showAll || state.selectedStores.filter((id) => id !== "all").length > 1) {
+    if (showAllStores) {
       const sa = sMap[a.storeId]?.name || "Senza supermercato", sb = sMap[b.storeId]?.name || "Senza supermercato";
       const cmp = sa.localeCompare(sb, "it");
       if (cmp) return cmp;
@@ -651,8 +670,8 @@ export async function renderList(keepFilterOpen = false) {
         const d = routePosition(a.storeId, pa.categoryId) - routePosition(b.storeId, pb.categoryId);
         if (d) return d;
       }
-    } else if (state.selectedStores.length === 1 && state.selectedStores[0] !== "none" && state.selectedStores[0] !== "all") {
-      const d = routePosition(state.selectedStores[0], pa.categoryId) - routePosition(state.selectedStores[0], pb.categoryId);
+    } else if (storeVal !== "__none__") {
+      const d = routePosition(storeVal, pa.categoryId) - routePosition(storeVal, pb.categoryId);
       if (d) return d;
     }
     return (cMap[pa.categoryId]?.name || "").localeCompare(cMap[pb.categoryId]?.name || "", "it", { sensitivity: "base" }) || pa.name.localeCompare(pb.name, "it", { sensitivity: "base" });
@@ -679,18 +698,15 @@ export async function renderList(keepFilterOpen = false) {
   $("#listCounter").textContent = `${checked}/${visible.length}`;
   $("#listFooter").style.setProperty("--p", (visible.length ? Math.round(checked / visible.length * 100) : 0) + "%");
   $("#listFooter").classList.toggle("is-complete", visible.length > 0 && checked === visible.length);
-  const hasNoneItems = (storeItemCounts.none || 0) > 0;
-  const allDisabled = enabledFilterIds.length === 0;
-  const listFilterActive = !allDisabled && !showAll;
-  const listFilterOptions = [{ id: "none", label: "Senza supermercato", html: '<span style="font-style:italic">Senza supermercato</span>', disabled: !hasNoneItems }].concat(storeList.map((sto) => ({ id: sto.id, label: sto.name, html: storeChipHtml(sto), disabled: (storeItemCounts[sto.id] || 0) === 0 })));
+  const listFilterActive = (!allStoresDisabled && !showAllStores) || (!allCatsDisabled && !showAllCats);
   const isListModified = isSavedListModified(_cl, items, pMap, sMap);
   const canResetList = visible.length > 0 && checked > 0;
   const canEmptyList = visible.length > 0;
   const resetListIconSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#2f6db5" stroke="#173f73" stroke-width="1"/><path d="M7.2 7.2v3.9h3.9" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.1 14.3a5.2 5.2 0 1 0 1.3-5.7l-2.2 2.2" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const emptyListLabel = savedLists.length ? "Nessuna lista caricata" : "Nessuna lista salvata";
-  let html = `<div class="toolbar"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}</div><button type="button" class="kebab-menu-btn" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="2.1" fill="currentColor"/><circle cx="12" cy="12" r="2.1" fill="currentColor"/><circle cx="12" cy="18.5" r="2.1" fill="currentColor"/></svg></button></div>
-  ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="list-inuse-wrap"><div class="list-inuse-left"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : emptyListLabel}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div></div><div class="sticky-action-wrap list-sticky-btn-wrap list-primary-action-row"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi articolo alla lista</span></button><div class="list-quick-actions"><button type="button" class="header-icon list-quick-icon${canResetList ? "" : " dim"}" id="resetListQuickBtn" ${canResetList ? "" : "disabled"} aria-label="Inizializza spesa" title="Inizializza spesa">${resetListIconSvg}</button><button type="button" class="header-icon list-quick-icon trash-mini${canEmptyList ? "" : " dim"}" id="emptyListQuickBtn" ${canEmptyList ? "" : "disabled"} aria-label="Svuota Lista spesa" title="Svuota Lista spesa">${TRASH_OFFICE}</button></div></div>
-  <div class="prod-filters-box list-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span></div><div class="prod-filters-grid is-single">${multiFilterHtml({ id: "storeFilter", allLabel: "Tutti i supermercati", emptyLabel: "Nessun supermercato selezionato", options: listFilterOptions, selected: state.selectedStores, showAll, allDisabled, keepOpen: keepFilterOpen, searchQuery: keepFilterOpen ? _ps : "", searchMaxLength: 20, searchUppercase: true })}<button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera filtro supermercati" title="Azzera filtro supermercati">${SVG_FILTER_CLEAR}</button></div></div>`;
+  let html = `<div class="toolbar list-toolbar"><div class="list-title-stack"><div class="title-row"><h1>La mia Lista</h1>${infoBtn}</div><div class="list-inuse-wrap"><div class="list-inuse-left"><span class="list-inuse-badge${_cl ? "" : " is-empty"}">${_cl ? esc(_cl.name) : emptyListLabel}</span>${_cl && isListModified ? '<span class="list-modified-badge" title="Modifiche non ancora salvate" aria-label="Modifiche non ancora salvate"><span class="list-modified-dot" aria-hidden="true"></span>modificata</span>' : ""}</div></div></div><button type="button" class="kebab-menu-btn" id="clearListBtn" aria-label="Menu della lista" title="Menu della lista"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="2.1" fill="currentColor"/><circle cx="12" cy="12" r="2.1" fill="currentColor"/><circle cx="12" cy="18.5" r="2.1" fill="currentColor"/></svg></button></div>
+  ${infoPop("Componi la tua lista, aggiungendo articoli e assegnando loro le quantit\xE0 e il supermercato dove si acquister\xE0 (qualora questo non venisse specificato, verr\xE0 abbinato il supermercato predefinito).<br>Gli articoli verranno ordinati per supermercato e secondo il relativo percorso di spesa.")}<div class="sticky-action-wrap list-sticky-btn-wrap list-primary-action-row"><button class="btn btn-primary btn-block" id="addItemBtn">${SVG_CIRCLED_PLUS}<span>Aggiungi articolo alla lista</span></button><div class="list-quick-actions"><button type="button" class="header-icon list-quick-icon${canResetList ? "" : " dim"}" id="resetListQuickBtn" ${canResetList ? "" : "disabled"} aria-label="Inizializza spesa" title="Inizializza spesa">${resetListIconSvg}</button><button type="button" class="header-icon list-quick-icon trash-mini${canEmptyList ? "" : " dim"}" id="emptyListQuickBtn" ${canEmptyList ? "" : "disabled"} aria-label="Svuota Lista spesa" title="Svuota Lista spesa">${TRASH_OFFICE}</button></div></div>
+  <div class="prod-filters-box prod-filters-split list-filters-box"><div class="prod-filters-head"><span class="prod-filters-title">Filtra per</span><button type="button" class="filter-clear${listFilterActive ? "" : " dim"}" id="resetListFilters" ${listFilterActive ? "" : "disabled"} aria-label="Azzera tutti i filtri" title="Azzera tutti i filtri">${SVG_FILTER_CLEAR}</button></div><div class="prod-filters-grid">${singleFilterHtml({ id: "listStoreFilter", allLabel: "Tutti i supermercati", options: storeOpts, selectedValue: storeVal, allDisabled: allStoresDisabled, searchMaxLength: 20, searchUppercase: true })}${singleFilterHtml({ id: "listCatFilter", allLabel: "Tutti i reparti", options: catOpts, selectedValue: catVal, allDisabled: allCatsDisabled, searchMaxLength: 25, searchUppercase: true })}</div></div>`;
   if (!visible.length) html += `<div class="empty" style="margin-top:14px">${items.length ? "Nessun articolo per questo filtro." : "La lista \xE8 vuota.<br>Inizia aggiungendo un articolo."}</div>`;
   else {
     const storeTotals = new Map();
@@ -755,30 +771,38 @@ export async function renderList(keepFilterOpen = false) {
   $("#clearListBtn").addEventListener("click", openListMenu);
   $("#resetListQuickBtn")?.addEventListener("click", () => clearOrReset(true));
   $("#emptyListQuickBtn")?.addEventListener("click", () => clearOrReset(false));
-  const menu = $("#storeFilterMenu");
-  if (keepFilterOpen && menu) menu.scrollTop = prevScroll;
-  const saveFilter = () => localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
-  wireMultiFilter("storeFilter", {
+  const saveFilter = () => {
+    try {
+      localStorage.setItem("spesaSuMisura.selectedStore", state.selectedStore);
+      localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
+      localStorage.setItem("spesaSuMisura.selectedCategory", state.selectedCategory);
+    } catch (_) {}
+  };
+  wireSingleFilter("listStoreFilter", {
     searchMaxLength: 20,
     searchUppercase: true,
-    onAllChange: async (checked) => {
-      state.selectedStores = checked ? ["all"] : [];
-      state.selectedStore = "all";
+    onSelect: async (val) => {
+      state.selectedStore = val || "all";
+      state.selectedStores = state.selectedStore === "all" ? ["all"] : [state.selectedStore === "__none__" ? "none" : state.selectedStore];
       saveFilter();
-      await renderList(true);
-    },
-    onItemChange: async (ids) => {
-      state.selectedStores = enabledFilterIds.length > 0 && ids.length === enabledFilterIds.length ? ["all"] : ids;
-      state.selectedStore = "all";
+      await renderList();
+    }
+  });
+  wireSingleFilter("listCatFilter", {
+    searchMaxLength: 25,
+    searchUppercase: true,
+    onSelect: async (val) => {
+      state.selectedCategory = val || "all";
       saveFilter();
-      await renderList(true);
+      await renderList();
     }
   });
   $("#resetListFilters")?.addEventListener("click", async () => {
-    state.selectedStores = ["all"];
     state.selectedStore = "all";
+    state.selectedStores = ["all"];
+    state.selectedCategory = "all";
     saveFilter();
-    await renderList(false);
+    await renderList();
   });
   main.querySelectorAll("[data-check-item]").forEach((el) => {
     el.addEventListener("click", (e) => e.stopPropagation());
@@ -789,7 +813,7 @@ export async function renderList(keepFilterOpen = false) {
       it.checked = el.checked;
       it.updatedAt = now();
       await putOne("shoppingListItems", it);
-      await renderList(false);
+      await renderList();
       checkCelebration();
     });
   });
@@ -799,15 +823,12 @@ export async function renderList(keepFilterOpen = false) {
 }
 
 export async function checkCelebration() {
-  const items = await activeItems();
-  const allIds = (await allStoresSorted()).map((s) => s.id).concat(["none"]);
-  const showAll = state.selectedStores.includes("all") || state.selectedStores.length === allIds.length && allIds.every((id) => state.selectedStores.includes(id));
-  const visible = items.filter((i) => showAll ? true : state.selectedStores.includes(i.storeId || "none"));
+  const visible = await visibleListItems();
   if (!visible.length || !visible.every((i) => i.checked)) {
     state.celebrationShownFor = "";
     return;
   }
-  const key = JSON.stringify(state.selectedStores) + ":" + visible.map((i) => i.id).sort().join(",");
+  const key = `${state.selectedStore}|${state.selectedCategory}:` + visible.map((i) => i.id).sort().join(",");
   if (state.celebrationShownFor === key) return;
   state.celebrationShownFor = key;
   const prices = await getAll("productPrices");

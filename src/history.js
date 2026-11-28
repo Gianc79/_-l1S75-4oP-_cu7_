@@ -415,8 +415,11 @@ export async function importBackup(file) {
     await txDone(tx);
     state.selectedStore = "all";
     state.selectedStores = ["all"];
+    state.selectedCategory = "all";
     state.pageStack = [];
+    localStorage.setItem("spesaSuMisura.selectedStore", "all");
     localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
+    localStorage.setItem("spesaSuMisura.selectedCategory", "all");
     state.page = "list";
     state.listScrollY = 0;
     state.restoreListScroll = false;

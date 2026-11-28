@@ -7,6 +7,7 @@ export const state = {
   page: "list",
   selectedStore: "all",
   selectedStores: ["all"],
+  selectedCategory: "all",
   editingProductId: null,
   productReturnPage: "products",
   productReturnCategoryId: null,

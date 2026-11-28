@@ -33,19 +33,33 @@ export async function init() {
     return;
   }
   try {
-    const savedFilters = localStorage.getItem("spesaSuMisura.selectedStores");
-    if (savedFilters) {
-      try {
-        state.selectedStores = JSON.parse(savedFilters);
-      } catch (e) {
-        state.selectedStores = ["all"];
-      }
+    const savedStore = localStorage.getItem("spesaSuMisura.selectedStore");
+    if (savedStore) {
+      state.selectedStore = savedStore === "none" ? "__none__" : savedStore;
     } else {
-      const oldFilter = localStorage.getItem("spesaSuMisura.selectedStore");
-      state.selectedStores = oldFilter && oldFilter !== "all" ? [oldFilter] : ["all"];
+      const savedFilters = localStorage.getItem("spesaSuMisura.selectedStores");
+      if (savedFilters) {
+        try {
+          const parsed = JSON.parse(savedFilters);
+          if (Array.isArray(parsed) && parsed.length === 1 && parsed[0] !== "all") {
+            state.selectedStore = parsed[0] === "none" ? "__none__" : parsed[0];
+          } else {
+            state.selectedStore = "all";
+          }
+        } catch (e) {
+          state.selectedStore = "all";
+        }
+      } else {
+        state.selectedStore = "all";
+      }
     }
+    state.selectedStores = state.selectedStore === "all" ? ["all"] : [state.selectedStore === "__none__" ? "none" : state.selectedStore];
+    const savedCat = localStorage.getItem("spesaSuMisura.selectedCategory");
+    state.selectedCategory = savedCat ? (savedCat === "none" ? "__none__" : savedCat) : "all";
   } catch (_) {
+    state.selectedStore = "all";
     state.selectedStores = ["all"];
+    state.selectedCategory = "all";
   }
   document.querySelectorAll(".nav-btn").forEach((b) => b.addEventListener("click", () => {
     state.productsView.q = "";

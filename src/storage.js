@@ -178,6 +178,19 @@ export async function replaceItems(newItems) {
 }
 
 export async function visibleListItems() {
-  const items = await activeItems(), allIds = (await allStoresSorted()).map((x) => x.id).concat(["none"]), showAll = state.selectedStores.includes("all") || state.selectedStores.length === allIds.length && allIds.every((id) => state.selectedStores.includes(id));
-  return items.filter((i) => showAll ? true : state.selectedStores.includes(i.storeId || "none"));
+  const [items, products, storeList, catList] = await Promise.all([activeItems(), getAll("products"), allStoresSorted(), allCategoriesSorted()]);
+  const pMap = Object.fromEntries(products.map((p) => [p.id, p]));
+  const storeIds = new Set(storeList.map((s) => s.id));
+  const catIds = new Set(catList.map((c) => c.id));
+  const rawStore = state.selectedStore === "none" ? "__none__" : state.selectedStore;
+  const rawCat = state.selectedCategory === "none" ? "__none__" : state.selectedCategory;
+  const storeVal = typeof rawStore === "string" && (rawStore === "all" || rawStore === "__none__" || storeIds.has(rawStore)) ? rawStore : "all";
+  const catVal = typeof rawCat === "string" && (rawCat === "all" || rawCat === "__none__" || catIds.has(rawCat)) ? rawCat : "all";
+  return items.filter((i) => {
+    const p = pMap[i.productId];
+    if (!p) return false;
+    const iStore = i.storeId && storeIds.has(i.storeId) ? i.storeId : "__none__";
+    const iCat = p.categoryId && catIds.has(p.categoryId) ? p.categoryId : "__none__";
+    return (storeVal === "all" || iStore === storeVal) && (catVal === "all" || iCat === catVal);
+  });
 }

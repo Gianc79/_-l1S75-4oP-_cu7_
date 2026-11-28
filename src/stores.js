@@ -231,6 +231,7 @@ export async function renderStores() {
       await txDone(tx);
       state.selectedStore = "all";
       state.selectedStores = ["all"];
+      localStorage.setItem("spesaSuMisura.selectedStore", state.selectedStore);
       localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
       await renderStores();
       showToast("Supermercato eliminato");
@@ -307,6 +308,7 @@ export async function renderStores() {
       : ["all"];
     state.selectedStores = nextSelStores.length ? nextSelStores : ["all"];
     state.storesSelectedFilter = "all";
+    localStorage.setItem("spesaSuMisura.selectedStore", state.selectedStore);
     localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
     await renderStores();
     showToast(targets.length === 1 ? "Supermercato eliminato" : "Supermercati eliminati");
@@ -914,6 +916,7 @@ export async function deleteStore(storeId) {
   await txDone(tx);
   state.selectedStore = "all";
   state.selectedStores = ["all"];
+  localStorage.setItem("spesaSuMisura.selectedStore", state.selectedStore);
   localStorage.setItem("spesaSuMisura.selectedStores", JSON.stringify(state.selectedStores));
   renderStores();
   showToast("Supermercato eliminato");
