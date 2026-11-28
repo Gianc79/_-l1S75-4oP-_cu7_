@@ -12,7 +12,7 @@ const SCONTRINO_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d=
 const CALENDAR_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" class="archive-cal-svg"><rect x="2.75" y="4.75" width="18.5" height="16.5" rx="2.6" fill="#ffffff" stroke="#174f86" stroke-width="1.5"/><path d="M2.75 7.35A2.6 2.6 0 0 1 5.35 4.75h13.3a2.6 2.6 0 0 1 2.6 2.6V9.6H2.75V7.35Z" fill="#d93829" stroke="#174f86" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.6 2.4v4M16.4 2.4v4" stroke="#174f86" stroke-width="2" stroke-linecap="round"/><rect x="6" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="10.65" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="15.3" y="12" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="6" y="16" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/><rect x="10.65" y="16" width="2.7" height="2.4" rx=".5" fill="#d93829"/><rect x="15.3" y="16" width="2.7" height="2.4" rx=".5" fill="#7c98b6"/></svg>';
 
 const ADJUSTMENT_PRESETS = {
-  add: ["Sacchetti BIO", "Borse", "Cauzioni", "Contributo premi", "Arrotondamento", "Consegna"],
+  add: ["Sacchetti BIO", "Borse spesa", "Cauzioni", "Contributo premi", "Arrotondamento", "Consegna"],
   deduct: ["Buoni fedelt\xE0", "Buoni pasto", "Resi", "Sconto generale", "Arrotondamento"]
 };
 
