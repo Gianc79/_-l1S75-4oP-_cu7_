@@ -1,6 +1,6 @@
 // Archivio spese (dati economici immutabili, anagrafica e percorso dinamici), aggiunte/detrazioni cassa e riepilogo risparmio
 import { state } from "./state.js";
-import { SVG_CHK, SVG_CIRCLED_PLUS, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
+import { PENCIL_SVG, SVG_CHK, SVG_CIRCLED_PLUS, SVG_FILTER_CLEAR, SVG_X, TRASH_OFFICE, infoBtn } from "./data.js";
 import { $, assignUnit, displayUnit, esc, eurosFromInput, extractProductFields, fmtQtyUnit, formatProductNetParts, formatTitleWithNetHtml, isConfezionePackaging, isPiecePackUnit, money, moneyPerUnit, norm, now, parsePackPieces, parseQty, productDisplayParts, searchNorm, storeChipHtml, storeHasColors, uuid } from "./calculations.js";
 import { activeItems, delOne, getAll, getOne, putOne, txDone } from "./storage.js";
 import { attachSearchClear, bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, selectAllOnFocus, showToast, showUndoToast, singleFilterHtml, swipeWrap, updateSingleFilterUI, wireSingleFilter } from "./ui.js";
@@ -2043,21 +2043,54 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   let adjType = detailState.adjType === "deduct" ? "deduct" : "add";
   let selectedPreset = "";
 
+  const totalAdjCount = adjustments.length;
+  const netAdjMinor = t.additionsMinor - t.deductionsMinor;
+  const netAdjClass = totalAdjCount === 0
+    ? "is-empty"
+    : (netAdjMinor > 0 ? "is-add" : (netAdjMinor < 0 ? "is-deduct" : "is-neutral"));
+  const netAdjText = totalAdjCount === 0
+    ? "0,00 \u20AC"
+    : (netAdjMinor > 0
+      ? `+${money(netAdjMinor)}`
+      : (netAdjMinor < 0 ? `\u2212${money(Math.abs(netAdjMinor))}` : money(0)));
+
   const itemsRowsHtml = items.map((it) => renderReceiptItemRowHtml(it)).join("");
 
-  const renderAdjCardRowsHtml = (type) => adjustments
-    .filter((adj) => adj.type === type)
-    .map((adj) => {
+  const fmtEditableAmt = (minor) => (Math.max(0, Number(minor) || 0) / 100).toLocaleString("it-IT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: false
+  });
+
+  const renderAllAdjCardRowsHtml = () => {
+    if (!adjustments.length) return "";
+    return adjustments.map((adj) => {
       const isAdd = adj.type === "add";
       const sign = isAdd ? "+" : "\u2212";
       const amt = Math.max(0, Number(adj.amountMinor) || 0);
-      return swipeWrap(`<div class="receipt-adj-item-compact ${isAdd ? "is-add" : "is-deduct"}" data-adj-card-row="${esc(adj.id)}">
-        <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
-        <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(amt)}</strong>
+      const amtFormatted = fmtEditableAmt(amt);
+      return swipeWrap(`<div class="receipt-adj-item-compact ${isAdd ? "is-add" : "is-deduct"}" data-adj-row-id="${esc(adj.id)}">
+        <div class="receipt-adj-row-main">
+          <span class="receipt-adj-compact-name">${esc(adj.label)}</span>
+          <div class="receipt-adj-row-right">
+            <strong class="receipt-adj-compact-amount ${isAdd ? "is-add" : "is-deduct"}">${sign}${money(amt)}</strong>
+            <button type="button" class="row-edit-inline receipt-adj-edit-btn" data-adj-edit-id="${esc(adj.id)}" aria-label="Modifica importo ${esc(adj.label)}" title="Modifica importo">${PENCIL_SVG}</button>
+          </div>
+        </div>
+        <div class="receipt-adj-inline-edit" data-adj-editor-for="${esc(adj.id)}" hidden>
+          <div class="receipt-adj-edit-field ${isAdd ? "is-add" : "is-deduct"}">
+            <span class="receipt-adj-sign ${isAdd ? "is-add" : "is-deduct"}" aria-hidden="true">${sign}</span>
+            <input type="text" inputmode="decimal" enterkeyhint="done" class="receipt-adj-edit-input" data-adj-edit-input="${esc(adj.id)}" maxlength="7" value="${esc(amtFormatted)}" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Nuovo importo per ${esc(adj.label)}">
+            <span class="receipt-adj-eur">\u20AC</span>
+          </div>
+          <button type="button" class="receipt-adj-edit-action is-cancel" data-adj-edit-cancel="${esc(adj.id)}" aria-label="Annulla modifica" title="Annulla">${SVG_X}</button>
+          <button type="button" class="receipt-adj-edit-action is-save" data-adj-edit-save="${esc(adj.id)}" aria-label="Salva importo" title="Salva">${SVG_CHK}</button>
+        </div>
       </div>`, "swipe-receipt-adj");
     }).join("");
+  };
 
-  const adjCardRowsHtml = renderAdjCardRowsHtml(adjType);
+  const adjCardRowsHtml = renderAllAdjCardRowsHtml();
 
   const nonRoundingMap = new Map();
   let hasRounding = false;
@@ -2103,15 +2136,16 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     </div>`;
   }).join("");
 
-  const renderPresetChip = (lbl) =>
-    `<button type="button" class="receipt-preset-chip${selectedPreset === lbl ? " is-selected" : ""}" data-adj-preset="${esc(lbl)}">${esc(lbl)}</button>`;
-  const renderPresetsHtml = (type) => {
-    if (type === "deduct") {
-      const row1 = ADJUSTMENT_PRESETS.deduct.slice(0, 3).map(renderPresetChip).join("");
-      const row2 = ADJUSTMENT_PRESETS.deduct.slice(3).map(renderPresetChip).join("");
-      return `<div class="receipt-presets-deduct-wrap"><div class="receipt-presets-row is-deduct-row1">${row1}</div><div class="receipt-presets-row is-deduct-row2">${row2}</div><div class="receipt-presets-row receipt-presets-spacer" aria-hidden="true"></div></div>`;
-    }
-    return ADJUSTMENT_PRESETS[type].map(renderPresetChip).join("");
+  const renderPresetOptionsHtml = (type) => {
+    const placeholder = type === "deduct" ? "Detrai voce" : "Aggiungi voce";
+    const sortedPresets = [...(ADJUSTMENT_PRESETS[type] || [])].sort((a, b) =>
+      a.localeCompare(b, "it", { sensitivity: "base" })
+    );
+    const opts = sortedPresets.map((lbl) => {
+      const isUsed = adjustments.some((a) => a.type === type && norm(a.label) === norm(lbl));
+      return `<option value="${esc(lbl)}"${isUsed ? " disabled" : ""}${!isUsed && selectedPreset === lbl ? " selected" : ""}>${esc(lbl)}</option>`;
+    }).join("");
+    return `<option value=""${!selectedPreset ? " selected" : ""}>${placeholder}</option>${opts}`;
   };
 
   const body = `<div class="saved-lists-sheet receipt-detail-sheet">
@@ -2129,33 +2163,37 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       </div>
     </div>
 
-    <div class="archive-card receipt-adj-card">
-      <div class="saved-list-head">
-        <div class="saved-list-head-left">
-          <span class="saved-list-title">Aggiunte e detrazioni allo scontrino</span>
+    <div class="archive-card receipt-adj-card receipt-adj-compact" id="receiptAdjCard">
+      <div class="receipt-adj-c-head">
+        <div class="receipt-adj-c-head-left">
+          <span class="receipt-adj-c-title">Aggiunte e detrazioni</span>
+          <span class="title-count-badge receipt-adj-c-count">${totalAdjCount}</span>
         </div>
+        <span class="receipt-adj-c-net ${netAdjClass}">${netAdjText}</span>
       </div>
       <div class="receipt-tabs-wrap ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="receiptTabsWrap">
-        <div class="receipt-tabs-bar" role="tablist" aria-label="Tipo voce scontrino">
-          <button type="button" role="tab" aria-selected="${adjType === "add" ? "true" : "false"}" class="receipt-tab-btn is-add${adjType === "add" ? " active" : ""}" data-adj-type="add">+ Aggiunte</button>
-          <button type="button" role="tab" aria-selected="${adjType === "deduct" ? "true" : "false"}" class="receipt-tab-btn is-deduct${adjType === "deduct" ? " active" : ""}" data-adj-type="deduct">\u2212 Detrazioni</button>
-        </div>
-        <div class="receipt-tab-panel" role="tabpanel">
-          <div class="receipt-presets" id="receiptAdjPresets">${renderPresetsHtml(adjType)}</div>
-          <div class="receipt-adj-inputs">
-            <div class="receipt-adj-amt-field">
-              <span class="receipt-adj-sign ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="adjSignIndicator" aria-hidden="true">${adjType === "deduct" ? "\u2212" : "+"}</span>
-              <div class="name-box receipt-adj-amt-box is-disabled">
-                <input type="text" inputmode="decimal" enterkeyhint="done" id="adjAmountInput" maxlength="7" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Importo in euro" disabled readonly tabindex="-1" aria-disabled="true">
-                <button type="button" class="name-no" id="adjAmountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
-                <button type="button" class="name-ok" id="adjAmountOk" aria-label="Conferma importo" title="Conferma importo">${SVG_CHK}</button>
-              </div>
-              <span class="receipt-adj-eur">\u20AC</span>
-            </div>
-            <button type="button" class="btn btn-primary btn-small" id="addAdjBtn" disabled>Aggiungi</button>
+        <div class="receipt-adj-c-row1">
+          <div class="receipt-adj-c-switch" role="tablist" aria-label="Tipo voce scontrino">
+            <button type="button" role="tab" aria-selected="${adjType === "add" ? "true" : "false"}" aria-label="Aggiunta" title="Aggiunta" class="receipt-tab-btn is-add${adjType === "add" ? " active" : ""}" data-adj-type="add">+</button>
+            <button type="button" role="tab" aria-selected="${adjType === "deduct" ? "true" : "false"}" aria-label="Detrazione" title="Detrazione" class="receipt-tab-btn is-deduct${adjType === "deduct" ? " active" : ""}" data-adj-type="deduct">\u2212</button>
           </div>
-          <div class="receipt-adj-records" id="receiptAdjRecords"${adjCardRowsHtml ? "" : " hidden"}>${adjCardRowsHtml}</div>
+          <div class="receipt-adj-c-select-wrap">
+            <select id="adjPresetSelect" class="receipt-adj-c-select" aria-label="${adjType === "deduct" ? "Detrai voce" : "Aggiungi voce"}">${renderPresetOptionsHtml(adjType)}</select>
+          </div>
         </div>
+        <div class="receipt-adj-inputs">
+          <div class="receipt-adj-amt-field is-disabled" id="adjAmtField">
+            <span class="receipt-adj-sign ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="adjSignIndicator" aria-hidden="true">${adjType === "deduct" ? "\u2212" : "+"}</span>
+            <div class="name-box receipt-adj-amt-box is-disabled">
+              <input type="text" inputmode="decimal" enterkeyhint="done" id="adjAmountInput" maxlength="7" placeholder="0,00" autocomplete="off" translate="no" spellcheck="false" aria-label="Importo in euro" disabled readonly tabindex="-1" aria-disabled="true">
+              <button type="button" class="name-no" id="adjAmountNo" aria-label="Annulla" title="Annulla">${SVG_X}</button>
+              <button type="button" class="name-ok" id="adjAmountOk" aria-label="Conferma importo" title="Conferma importo">${SVG_CHK}</button>
+            </div>
+            <span class="receipt-adj-eur">\u20AC</span>
+          </div>
+          <button type="button" class="btn btn-primary btn-small receipt-adj-submit ${adjType === "deduct" ? "is-deduct" : "is-add"}" id="addAdjBtn" disabled>${adjType === "deduct" ? "\u2212 Detrai" : "+ Inserisci"}</button>
+        </div>
+        <div class="receipt-adj-records" id="receiptAdjRecords"${adjCardRowsHtml ? "" : " hidden"}>${adjCardRowsHtml}</div>
       </div>
     </div>
 
@@ -2209,7 +2247,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   {
     const hh = $("#modalRoot .modal-header");
     hh.querySelector("h2").insertAdjacentHTML("beforeend", infoBtn);
-    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Prezzi, quantit\xE0, unit\xE0 di vendita e formato degli articoli restano congelati alla data di archiviazione; nome, marca, reparto, supermercato e percorso di spesa si aggiornano automaticamente con il catalogo.<br>Puoi aggiungere AGGIUNTE (es. sacchetti) o DETRAZIONI (es. buoni fedelt\xE0) allo scontrino, o eliminarle scorrendo verso destra.</div>`);
+    hh.insertAdjacentHTML("afterend", `<div class="info-pop" hidden>Prezzi, quantit\xE0, unit\xE0 di vendita e formato degli articoli restano congelati alla data di archiviazione; nome, marca, reparto, supermercato e percorso di spesa si aggiornano automaticamente con il catalogo.<br>Puoi aggiungere AGGIUNTE (es. sacchetti) o DETRAZIONI (es. buoni fedelt\xE0) allo scontrino, modificarne l'importo con la matita o eliminarle scorrendo verso destra.</div>`);
   }
 
   const root = $("#modalRoot");
@@ -2274,17 +2312,33 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     });
   }
 
+  const amtField = $("#adjAmtField");
+  const presetSelect = $("#adjPresetSelect");
   const amtInp = $("#adjAmountInput");
   const amtBox = amtInp?.closest(".name-box");
   const addAdjBtn = $("#addAdjBtn");
-  const presetsWrap = $("#receiptAdjPresets");
   const adjRecordsEl = $("#receiptAdjRecords");
   const adjSignEl = $("#adjSignIndicator");
 
-  const bindAdjSwipeDelete = () => {
+  const closeAllAdjEditors = (releaseKb = false) => {
+    if (!adjRecordsEl) return;
+    adjRecordsEl.querySelectorAll(".receipt-adj-item-compact.is-editing").forEach((itemEl) => {
+      const id = itemEl.dataset.adjRowId;
+      const origAdj = adjustments.find((a) => a.id === id);
+      const editorEl = itemEl.querySelector(".receipt-adj-inline-edit");
+      const inpEl = itemEl.querySelector(".receipt-adj-edit-input");
+      if (inpEl && origAdj) inpEl.value = fmtEditableAmt(origAdj.amountMinor);
+      if (editorEl) editorEl.hidden = true;
+      itemEl.classList.remove("is-editing");
+      if (inpEl && document.activeElement === inpEl) inpEl.blur();
+    });
+    if (releaseKb) releaseModalKeyboard();
+  };
+
+  const bindAdjRecordsInteractions = () => {
     if (!adjRecordsEl || adjRecordsEl.hidden) return;
-    bindSwipeDelete(adjRecordsEl, "[data-adj-card-row]", async (row) => {
-      const adjId = row.dataset.adjCardRow;
+    bindSwipeDelete(adjRecordsEl, "[data-adj-row-id]", async (row) => {
+      const adjId = row.dataset.adjRowId;
       const removedIdx = adjustments.findIndex((a) => a.id === adjId);
       if (removedIdx === -1) return false;
       const removedAdj = adjustments[removedIdx];
@@ -2302,7 +2356,10 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
         const latest = await getOne("archivedReceipts", currentReceipt.id);
         if (!latest) return;
         const curAdjs = Array.isArray(latest.adjustments) ? [...latest.adjustments] : [];
-        if (!curAdjs.some((a) => a.id === removedAdj.id)) {
+        const alreadySame = curAdjs.some((a) =>
+          a.id === removedAdj.id || (a.type === removedAdj.type && norm(a.label) === norm(removedAdj.label))
+        );
+        if (!alreadySame) {
           const insertAt = Math.max(0, Math.min(removedIdx, curAdjs.length));
           curAdjs.splice(insertAt, 0, removedAdj);
           await putOne("archivedReceipts", { ...latest, adjustments: curAdjs, updatedAt: now() });
@@ -2320,8 +2377,105 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
         }
       });
     });
+
+    adjRecordsEl.querySelectorAll("[data-adj-row-id]").forEach((rowEl) => {
+      const adjId = rowEl.dataset.adjRowId;
+      const adj = adjustments.find((a) => a.id === adjId);
+      if (!adj) return;
+      const editBtn = rowEl.querySelector("[data-adj-edit-id]");
+      const editorEl = rowEl.querySelector(".receipt-adj-inline-edit");
+      const editInp = rowEl.querySelector(".receipt-adj-edit-input");
+      const cancelBtn = rowEl.querySelector("[data-adj-edit-cancel]");
+      const saveBtn = rowEl.querySelector("[data-adj-edit-save]");
+
+      rowEl.addEventListener("swipestart", () => {
+        if (rowEl.classList.contains("is-editing")) closeAllAdjEditors(true);
+      });
+      editorEl?.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+      const openEditor = () => {
+        const alreadyOpen = rowEl.classList.contains("is-editing");
+        closeAllAdjEditors(false);
+        if (alreadyOpen) {
+          releaseModalKeyboard();
+          return;
+        }
+        if (!editorEl || !editInp) return;
+        editInp.value = fmtEditableAmt(adj.amountMinor);
+        editorEl.hidden = false;
+        rowEl.classList.add("is-editing");
+        editInp.focus();
+        try { editInp.select(); } catch (_) {}
+      };
+
+      const saveEditedAmount = async () => {
+        if (!editInp) return;
+        const raw = editInp.value.trim();
+        const nextMinor = eurosFromInput(raw);
+        if (nextMinor === null || Number.isNaN(nextMinor) || nextMinor <= 0 || nextMinor > 999999) {
+          showToast("Inserisci un importo valido maggiore di zero (max 9999,99 \u20AC).");
+          editInp.focus();
+          return;
+        }
+        const prevMinor = Math.max(0, Number(adj.amountMinor) || 0);
+        if (nextMinor === prevMinor) {
+          closeAllAdjEditors(true);
+          return;
+        }
+        const nextAdjustments = adjustments.map((a) =>
+          a.id === adjId ? { ...a, amountMinor: nextMinor, updatedAt: now() } : a
+        );
+        const updated = {
+          ...currentReceipt,
+          adjustments: nextAdjustments,
+          updatedAt: now()
+        };
+        await putOne("archivedReceipts", updated);
+        const keepScroll = modalEl ? modalEl.scrollTop : 0;
+        releaseModalKeyboard();
+        state.currentModal = null;
+        state.currentModalKeep = false;
+        await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
+        showToast("Importo aggiornato");
+      };
+
+      editBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditor();
+      });
+      rowEl.querySelector(".receipt-adj-row-main")?.addEventListener("click", (e) => {
+        if (e.target.closest("[data-adj-edit-id]")) return;
+        openEditor();
+      });
+      if (editInp) {
+        selectAllOnFocus(editInp);
+        editInp.addEventListener("input", () => {
+          const clean = sanitizeReceiptAmountInput(editInp.value);
+          if (editInp.value !== clean) editInp.value = clean;
+        });
+        editInp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.keyCode === 13) {
+            e.preventDefault();
+            saveEditedAmount();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            closeAllAdjEditors(true);
+          }
+        });
+      }
+      cancelBtn?.addEventListener("mousedown", (e) => e.preventDefault());
+      cancelBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAllAdjEditors(true);
+      });
+      saveBtn?.addEventListener("mousedown", (e) => e.preventDefault());
+      saveBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveEditedAmount();
+      });
+    });
   };
-  bindAdjSwipeDelete();
+  bindAdjRecordsInteractions();
 
   let confirmedAmtVal = "";
   const syncAmtDirty = () => {
@@ -2331,6 +2485,8 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
   const syncAdjAmountEnabled = (clearValue = false) => {
     const enabled = !!selectedPreset;
     if (addAdjBtn) addAdjBtn.disabled = !enabled;
+    amtField?.classList.toggle("is-disabled", !enabled);
+    presetSelect?.classList.toggle("has-value", enabled);
     if (!amtInp) return;
     amtInp.disabled = !enabled;
     amtInp.readOnly = !enabled;
@@ -2350,52 +2506,54 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     syncAmtDirty();
   };
 
-  const bindPresetChips = () => {
-    presetsWrap?.querySelectorAll("[data-adj-preset]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        selectedPreset = btn.dataset.adjPreset || "";
-        presetsWrap.querySelectorAll("[data-adj-preset]").forEach((b) => {
-          b.classList.toggle("is-selected", b.dataset.adjPreset === selectedPreset);
-        });
-        syncAdjAmountEnabled(false);
-        amtInp?.focus();
-      });
-    });
-  };
-  bindPresetChips();
+  presetSelect?.addEventListener("change", () => {
+    const opt = presetSelect.selectedOptions?.[0];
+    if (opt?.disabled) {
+      presetSelect.value = "";
+      selectedPreset = "";
+      syncAdjAmountEnabled(true);
+      return;
+    }
+    selectedPreset = (presetSelect.value || "").trim();
+    syncAdjAmountEnabled(!selectedPreset);
+    if (selectedPreset) amtInp?.focus();
+  });
   syncAdjAmountEnabled(false);
 
   const tabsWrap = $("#receiptTabsWrap");
-  root.querySelectorAll("[data-adj-type]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const nextType = btn.dataset.adjType === "deduct" ? "deduct" : "add";
-      if (nextType === adjType) return;
-      adjType = nextType;
-      selectedPreset = "";
-      syncAdjAmountEnabled(true);
-      tabsWrap?.classList.toggle("is-add", adjType === "add");
-      tabsWrap?.classList.toggle("is-deduct", adjType === "deduct");
-      if (adjSignEl) {
-        adjSignEl.textContent = adjType === "deduct" ? "\u2212" : "+";
-        adjSignEl.classList.toggle("is-add", adjType === "add");
-        adjSignEl.classList.toggle("is-deduct", adjType === "deduct");
-      }
-      root.querySelectorAll("[data-adj-type]").forEach((b) => {
-        const isAct = b.dataset.adjType === adjType;
-        b.classList.toggle("active", isAct);
-        b.setAttribute("aria-selected", String(isAct));
-      });
-      if (presetsWrap) {
-        presetsWrap.innerHTML = renderPresetsHtml(adjType);
-        bindPresetChips();
-      }
-      if (adjRecordsEl) {
-        const rowsHtml = renderAdjCardRowsHtml(adjType);
-        adjRecordsEl.innerHTML = rowsHtml;
-        adjRecordsEl.hidden = !rowsHtml;
-        bindAdjSwipeDelete();
-      }
+  const switchAdjTab = (nextType) => {
+    const normalized = nextType === "deduct" ? "deduct" : "add";
+    if (normalized === adjType) return;
+    adjType = normalized;
+    selectedPreset = "";
+    syncAdjAmountEnabled(true);
+    tabsWrap?.classList.toggle("is-add", adjType === "add");
+    tabsWrap?.classList.toggle("is-deduct", adjType === "deduct");
+    if (adjSignEl) {
+      adjSignEl.textContent = adjType === "deduct" ? "\u2212" : "+";
+      adjSignEl.classList.toggle("is-add", adjType === "add");
+      adjSignEl.classList.toggle("is-deduct", adjType === "deduct");
+    }
+    if (addAdjBtn) {
+      addAdjBtn.textContent = adjType === "deduct" ? "\u2212 Detrai" : "+ Inserisci";
+      addAdjBtn.classList.toggle("is-add", adjType === "add");
+      addAdjBtn.classList.toggle("is-deduct", adjType === "deduct");
+    }
+    root.querySelectorAll("[data-adj-type]").forEach((b) => {
+      const isAct = b.dataset.adjType === adjType;
+      b.classList.toggle("active", isAct);
+      b.setAttribute("aria-selected", String(isAct));
     });
+    if (presetSelect) {
+      presetSelect.innerHTML = renderPresetOptionsHtml(adjType);
+      presetSelect.value = "";
+      presetSelect.setAttribute("aria-label", adjType === "deduct" ? "Detrai voce" : "Aggiungi voce");
+      presetSelect.classList.remove("has-value");
+    }
+  };
+
+  root.querySelectorAll("[data-adj-type]").forEach((btn) => {
+    btn.addEventListener("click", () => switchAdjTab(btn.dataset.adjType));
   });
 
   if (amtInp && amtBox) {
@@ -2469,33 +2627,19 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
       return;
     }
     const normLabel = norm(label);
-    const matching = adjustments.filter((a) => a.type === adjType && norm(a.label) === normLabel);
-    let nextAdjustments;
-    let wasMerged = false;
-    if (matching.length > 0) {
-      wasMerged = true;
-      const sumMinor = matching.reduce((acc, a) => acc + Math.max(0, Number(a.amountMinor) || 0), 0) + amountMinor;
-      const firstId = matching[0].id;
-      nextAdjustments = [];
-      for (const a of adjustments) {
-        if (a.type === adjType && norm(a.label) === normLabel) {
-          if (a.id === firstId) {
-            nextAdjustments.push({ ...a, label, amountMinor: sumMinor, updatedAt: now() });
-          }
-        } else {
-          nextAdjustments.push(a);
-        }
-      }
-    } else {
-      const newAdj = {
-        id: uuid(),
-        type: adjType,
-        label,
-        amountMinor,
-        createdAt: now()
-      };
-      nextAdjustments = [...adjustments, newAdj];
+    const alreadyExists = adjustments.some((a) => a.type === adjType && norm(a.label) === normLabel);
+    if (alreadyExists) {
+      showToast("Voce gi\xE0 inserita: usa la matita nell'elenco per modificarla.");
+      return;
     }
+    const newAdj = {
+      id: uuid(),
+      type: adjType,
+      label,
+      amountMinor,
+      createdAt: now()
+    };
+    const nextAdjustments = [...adjustments, newAdj];
     const updated = {
       ...currentReceipt,
       adjustments: nextAdjustments,
@@ -2507,9 +2651,7 @@ export async function openReceiptDetailWindow(receiptId, archiveOpts = {}, detai
     state.currentModal = null;
     state.currentModalKeep = false;
     await openReceiptDetailWindow(currentReceipt.id, archiveOpts, { adjType, scrollTop: keepScroll });
-    showToast(wasMerged
-      ? (adjType === "add" ? "Aggiunta aggiornata" : "Detrazione aggiornata")
-      : (adjType === "add" ? "Aggiunta salvata" : "Detrazione salvata"));
+    showToast(adjType === "add" ? "Aggiunta salvata" : "Detrazione salvata");
   };
 
   $("#addAdjBtn")?.addEventListener("click", commitAdjustment);
