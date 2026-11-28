@@ -42,8 +42,10 @@ jobs:
           package it.spesasumisura.app;
 
           import android.app.Activity;
+          import android.content.ActivityNotFoundException;
           import android.content.Intent;
           import android.net.Uri;
+          import android.os.Bundle;
           import androidx.activity.result.ActivityResult;
           import com.getcapacitor.JSObject;
           import com.getcapacitor.Plugin;
@@ -51,33 +53,68 @@ jobs:
           import com.getcapacitor.PluginMethod;
           import com.getcapacitor.annotation.ActivityCallback;
           import com.getcapacitor.annotation.CapacitorPlugin;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
           import java.io.OutputStream;
-          import java.nio.charset.StandardCharsets;
 
           @CapacitorPlugin(name = "BackupSaver")
           public class BackupSaverPlugin extends Plugin {
+              private boolean isSaving = false;
+
+              @Override
+              protected Bundle saveInstanceState() {
+                  return new Bundle();
+              }
+
               @PluginMethod
               public void saveFile(PluginCall call) {
+                  if (isSaving) {
+                      call.reject("Salvataggio gi\u00e0 in corso.");
+                      return;
+                  }
                   String fileName = call.getString("fileName", "spesasumisura-backup.json");
                   String mimeType = call.getString("mimeType", "application/json");
-                  String content = call.getString("content");
-                  if (content == null) {
-                      call.reject("Contenuto del backup mancante.");
+                  String sourcePath = call.getString("sourcePath", "");
+                  if (sourcePath == null || sourcePath.isEmpty()) {
+                      call.reject("Percorso temporaneo del backup mancante.");
+                      return;
+                  }
+                  File sourceFile = resolveCacheFile(sourcePath);
+                  if (!sourceFile.exists() || !sourceFile.isFile()) {
+                      call.reject("File temporaneo del backup non trovato.");
                       return;
                   }
                   Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                   intent.addCategory(Intent.CATEGORY_OPENABLE);
                   intent.setType(mimeType);
                   intent.putExtra(Intent.EXTRA_TITLE, fileName);
-                  startActivityForResult(call, intent, "handleSaveFileResult");
+                  intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                  isSaving = true;
+                  try {
+                      startActivityForResult(call, intent, "handleSaveFileResult");
+                  } catch (ActivityNotFoundException e) {
+                      isSaving = false;
+                      deleteQuietly(sourceFile);
+                      call.reject("Nessun selettore file disponibile sul dispositivo.");
+                  } catch (Throwable t) {
+                      isSaving = false;
+                      deleteQuietly(sourceFile);
+                      call.reject("Impossibile aprire la finestra di salvataggio: " + safeMsg(t));
+                  }
               }
 
               @ActivityCallback
-              public void handleSaveFileResult(PluginCall call, ActivityResult result) {
+              private void handleSaveFileResult(PluginCall call, ActivityResult result) {
+                  isSaving = false;
                   if (call == null) {
                       return;
                   }
+                  String sourcePath = call.getString("sourcePath", "");
+                  File sourceFile = resolveCacheFile(sourcePath);
                   if (result == null || result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+                      deleteQuietly(sourceFile);
                       JSObject cancelled = new JSObject();
                       cancelled.put("saved", false);
                       cancelled.put("cancelled", true);
@@ -86,36 +123,77 @@ jobs:
                   }
                   Uri uri = result.getData().getData();
                   if (uri == null) {
+                      deleteQuietly(sourceFile);
                       JSObject cancelled = new JSObject();
                       cancelled.put("saved", false);
                       cancelled.put("cancelled", true);
                       call.resolve(cancelled);
                       return;
                   }
-                  String content = call.getString("content", "");
-                  try {
-                      OutputStream os = null;
+                  execute(() -> {
                       try {
-                          os = getContext().getContentResolver().openOutputStream(uri, "wt");
-                      } catch (IllegalArgumentException | UnsupportedOperationException ignored) {
-                          os = getContext().getContentResolver().openOutputStream(uri, "w");
+                          if (!sourceFile.exists() || !sourceFile.isFile()) {
+                              call.reject("File temporaneo del backup non trovato.");
+                              return;
+                          }
+                          OutputStream os = openTargetStream(uri);
+                          try (InputStream in = new FileInputStream(sourceFile); OutputStream out = os) {
+                              byte[] buffer = new byte[16384];
+                              int read;
+                              while ((read = in.read(buffer)) != -1) {
+                                  out.write(buffer, 0, read);
+                              }
+                              out.flush();
+                          }
+                          JSObject ret = new JSObject();
+                          ret.put("saved", true);
+                          ret.put("cancelled", false);
+                          ret.put("uri", uri.toString());
+                          call.resolve(ret);
+                      } catch (Throwable t) {
+                          call.reject("Errore durante il salvataggio: " + safeMsg(t));
+                      } finally {
+                          deleteQuietly(sourceFile);
                       }
-                      if (os == null) {
-                          call.reject("Impossibile aprire il file di destinazione.");
-                          return;
+                  });
+              }
+
+              private OutputStream openTargetStream(Uri uri) throws IOException {
+                  try {
+                      OutputStream os = getContext().getContentResolver().openOutputStream(uri, "wt");
+                      if (os != null) {
+                          return os;
                       }
-                      try (OutputStream out = os) {
-                          out.write(content.getBytes(StandardCharsets.UTF_8));
-                          out.flush();
-                      }
-                      JSObject ret = new JSObject();
-                      ret.put("saved", true);
-                      ret.put("cancelled", false);
-                      ret.put("uri", uri.toString());
-                      call.resolve(ret);
-                  } catch (Exception e) {
-                      call.reject("Errore durante il salvataggio: " + e.getMessage(), e);
+                  } catch (Throwable ignored) {
+                      // Alcuni provider supportano solo la modalita "w"
                   }
+                  OutputStream os = getContext().getContentResolver().openOutputStream(uri, "w");
+                  if (os == null) {
+                      throw new IOException("Impossibile aprire il file di destinazione.");
+                  }
+                  return os;
+              }
+
+              private File resolveCacheFile(String sourcePath) {
+                  String safeName = new File(sourcePath == null ? "" : sourcePath).getName();
+                  return new File(getContext().getCacheDir(), safeName);
+              }
+
+              private void deleteQuietly(File file) {
+                  try {
+                      if (file != null && file.exists()) {
+                          file.delete();
+                      }
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private String safeMsg(Throwable t) {
+                  if (t == null) {
+                      return "errore sconosciuto";
+                  }
+                  String m = t.getMessage();
+                  return (m != null && !m.isEmpty()) ? m : t.getClass().getSimpleName();
               }
           }
           EOF

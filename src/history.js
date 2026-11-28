@@ -303,17 +303,28 @@ export async function exportBackup(options = {}) {
     try {
       const { jsonText } = await buildBackup();
       if (Capacitor.isPluginAvailable("BackupSaver")) {
-        const res = await BackupSaver.saveFile({
-          fileName: defaultName,
-          mimeType: "application/json",
-          content: jsonText
+        const tempCachePath = "__pending_backup.json";
+        await Filesystem.writeFile({
+          path: tempCachePath,
+          data: jsonText,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8
         });
-        if (res?.cancelled) return false;
-        if (res?.saved) {
-          showToast("Salvataggio eseguito");
-          return true;
+        try {
+          const res = await BackupSaver.saveFile({
+            fileName: defaultName,
+            mimeType: "application/json",
+            sourcePath: tempCachePath
+          });
+          if (res?.cancelled) return false;
+          if (res?.saved) {
+            showToast("Salvataggio eseguito");
+            return true;
+          }
+          return false;
+        } finally {
+          Filesystem.deleteFile({ path: tempCachePath, directory: Directory.Cache }).catch(() => {});
         }
-        return false;
       }
       const saved = await Filesystem.writeFile({
         path: defaultName,
