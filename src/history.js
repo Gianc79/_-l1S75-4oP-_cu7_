@@ -1,5 +1,5 @@
 // Storico liste salvate, guida/informazioni e backup/ripristino dati
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { state } from "./state.js";
@@ -9,6 +9,8 @@ import { activeItems, activeList, allData, delOne, getAll, getOne, putOne, repla
 import { bindSwipeDelete, closeModal, confirmDialog, modal, releaseModalKeyboard, showToast, showUndoToast, swipeWrap } from "./ui.js";
 import { openListMenu, renderList } from "./shoppingList.js";
 import { render } from "./router.js";
+
+const BackupSaver = registerPlugin("BackupSaver");
 
 export async function currentSavedListId() {
   const cur = await settings(), id = cur.currentSavedListId;
@@ -280,14 +282,80 @@ export async function renderOther() {
 
 export async function exportBackup(options = {}) {
   const opts = options && typeof options === "object" && !(options instanceof Event) ? options : {};
-  const data = await allData(), payload = { format: "personal-shopping-assistant", formatVersion: 1, appVersion: APP_VERSION, archiveId: (await getOne("meta", "archiveId"))?.value || uuid(), exportedAt: now(), data };
-  const jsonText = JSON.stringify(payload, null, 2);
-  const blob = new Blob([jsonText], { type: "application/json" });
   const defaultName = opts.suggestedName || `spesasumisura-backup-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
   const isNative = Capacitor.isNativePlatform();
-  if (!isNative && typeof window.showSaveFilePicker === "function") {
+  const buildBackup = async () => {
+    const data = await allData();
+    const payload = {
+      format: "personal-shopping-assistant",
+      formatVersion: 1,
+      appVersion: APP_VERSION,
+      archiveId: (await getOne("meta", "archiveId"))?.value || uuid(),
+      exportedAt: now(),
+      data
+    };
+    const jsonText = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonText], { type: "application/json" });
+    return { jsonText, blob };
+  };
+
+  if (isNative) {
     try {
-      const handle = await window.showSaveFilePicker({ suggestedName: defaultName, types: [{ description: "Backup SpesaSuMisura (JSON)", accept: { "application/json": [".json"] } }] });
+      const { jsonText } = await buildBackup();
+      if (Capacitor.isPluginAvailable("BackupSaver")) {
+        const res = await BackupSaver.saveFile({
+          fileName: defaultName,
+          mimeType: "application/json",
+          content: jsonText
+        });
+        if (res?.cancelled) return false;
+        if (res?.saved) {
+          showToast("Salvataggio eseguito");
+          return true;
+        }
+        return false;
+      }
+      const saved = await Filesystem.writeFile({
+        path: defaultName,
+        data: jsonText,
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8
+      });
+      const fileUri = saved?.uri || (await Filesystem.getUri({ path: defaultName, directory: Directory.Cache })).uri;
+      try {
+        await Share.share({
+          title: defaultName,
+          files: [fileUri],
+          dialogTitle: "Salva backup"
+        });
+        showToast("Salvataggio eseguito");
+        return true;
+      } catch (shareErr) {
+        const msg = String(shareErr?.message || "").toLowerCase();
+        if (msg.includes("cancel")) return false;
+      }
+      await Filesystem.writeFile({
+        path: defaultName,
+        data: jsonText,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+        recursive: true
+      });
+      showToast("Backup salvato in Documenti");
+      return true;
+    } catch (e) {
+      showToast("Impossibile salvare il backup: " + (e?.message || "errore sconosciuto"));
+      return false;
+    }
+  }
+
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: defaultName,
+        types: [{ description: "Backup SpesaSuMisura (JSON)", accept: { "application/json": [".json"] } }]
+      });
+      const { blob } = await buildBackup();
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
@@ -297,99 +365,24 @@ export async function exportBackup(options = {}) {
       if (e?.name === "AbortError") return false;
     }
   }
-  const helperNote = isNative
-    ? "Scegli il nome del file e premi Salva per scegliere dove salvare o condividere il backup sul dispositivo."
-    : "Il browser gestisce la destinazione del download. Nei browser che non consentono l'accesso diretto ai file, l'app non pu\xF2 garantire la sovrascrittura di un file gi\xE0 esistente.";
-  return await new Promise((resolve) => {
-    let settled = false;
-    const finish = (value) => {
-      if (!settled) {
-        settled = true;
-        resolve(value);
-      }
-    };
-    modal(opts.title || "Salva backup con nome", `<p>Scegli il nome con cui salvare il backup dei tuoi dati.</p><div class="field"><label for="backupFileName">Nome del file</label><input id="backupFileName" type="text" maxlength="120" value="${esc(defaultName)}" autocomplete="off"></div><p class="small muted">${helperNote}</p>`, [
-      { label: "Annulla", class: "btn-plain", action: () => {
-        closeModal(false);
-        finish(false);
-      } },
-      { label: "Salva", class: "btn-primary", action: async () => {
-        let fileName = $("#backupFileName").value.trim().replace(/[\\/:*?"<>|]/g, "-");
-        if (!fileName) {
-          showToast("Inserisci il nome del file.");
-          return;
-        }
-        if (!/\.json$/i.test(fileName)) fileName += ".json";
-        if (isNative) {
-          try {
-            const saved = await Filesystem.writeFile({
-              path: fileName,
-              data: jsonText,
-              directory: Directory.Cache,
-              encoding: Encoding.UTF8
-            });
-            const fileUri = saved?.uri || (await Filesystem.getUri({ path: fileName, directory: Directory.Cache })).uri;
-            let shared = false;
-            try {
-              await Share.share({
-                title: fileName,
-                files: [fileUri],
-                dialogTitle: "Salva backup"
-              });
-              shared = true;
-            } catch (shareErr) {
-              const msg = String(shareErr?.message || "").toLowerCase();
-              if (msg.includes("cancel")) {
-                closeModal(false);
-                finish(false);
-                return;
-              }
-            }
-            if (shared) {
-              closeModal(false);
-              showToast("Salvataggio eseguito");
-              finish(true);
-              return;
-            }
-            await Filesystem.writeFile({
-              path: fileName,
-              data: jsonText,
-              directory: Directory.Documents,
-              encoding: Encoding.UTF8,
-              recursive: true
-            });
-            closeModal(false);
-            showToast("Backup salvato in Documenti");
-            finish(true);
-            return;
-          } catch (e) {
-            closeModal(false);
-            showToast("Impossibile salvare il backup: " + (e?.message || "errore sconosciuto"));
-            finish(false);
-            return;
-          }
-        }
-        try {
-          const url = URL.createObjectURL(blob), a = document.createElement("a");
-          a.href = url;
-          a.download = fileName;
-          a.rel = "noopener";
-          a.style.display = "none";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 6e4);
-          closeModal(false);
-          showToast("Salvataggio eseguito");
-          finish(true);
-        } catch (e) {
-          closeModal(false);
-          showToast("Impossibile scaricare il backup: " + (e?.message || "errore sconosciuto"));
-          finish(false);
-        }
-      } }
-    ], { closeButton: true, onClose: () => finish(false), alignTop: true });
-  });
+
+  try {
+    const { blob } = await buildBackup();
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url;
+    a.download = defaultName;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 6e4);
+    showToast("Salvataggio eseguito");
+    return true;
+  } catch (e) {
+    showToast("Impossibile scaricare il backup: " + (e?.message || "errore sconosciuto"));
+    return false;
+  }
 }
 
 export async function importBackup(file) {

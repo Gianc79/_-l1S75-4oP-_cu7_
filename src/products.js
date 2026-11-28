@@ -325,12 +325,12 @@ export async function openProductForm(productId, returnPage = "products", return
   };
   const buttons = productId
     ? [
+        { id: "prodSaveExistingBtn", label: "Modifica esistente", class: "btn-primary prod-detail-action-btn prod-detail-existing-btn", action: async () => saveProductForm(productId, returnPage, returnCategoryId) },
+        { id: "prodCancelBtn", label: "Annulla", class: "btn-plain prod-detail-action-btn", action: cancelAction },
         { id: "prodSaveAsNewBtn", label: "Salva nuovo", class: "btn-azure prod-detail-action-btn", disabled: true, action: async () => {
           if ($("#prodSaveAsNewBtn")?.disabled) return;
           await saveProductForm(null, returnPage, returnCategoryId, { saveAsNew: true });
-        } },
-        { id: "prodSaveExistingBtn", label: "Modifica esistente", class: "btn-primary prod-detail-action-btn", action: async () => saveProductForm(productId, returnPage, returnCategoryId) },
-        { id: "prodCancelLinkBtn", label: "Annulla", class: "prod-detail-cancel-link", action: cancelAction }
+        } }
       ]
     : [
         { label: "Annulla", class: "btn-plain", action: cancelAction },

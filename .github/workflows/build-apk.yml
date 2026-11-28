@@ -38,6 +38,87 @@ jobs:
             cp icon-512.png resources/icon.png
             npx --yes @capacitor/assets generate --android
           fi
+          cat << 'EOF' > android/app/src/main/java/it/spesasumisura/app/BackupSaverPlugin.java
+          package it.spesasumisura.app;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
+          import androidx.activity.result.ActivityResult;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.ActivityCallback;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import java.io.OutputStream;
+          import java.nio.charset.StandardCharsets;
+
+          @CapacitorPlugin(name = "BackupSaver")
+          public class BackupSaverPlugin extends Plugin {
+              @PluginMethod
+              public void saveFile(PluginCall call) {
+                  String fileName = call.getString("fileName", "spesasumisura-backup.json");
+                  String mimeType = call.getString("mimeType", "application/json");
+                  String content = call.getString("content");
+                  if (content == null) {
+                      call.reject("Contenuto del backup mancante.");
+                      return;
+                  }
+                  Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                  intent.addCategory(Intent.CATEGORY_OPENABLE);
+                  intent.setType(mimeType);
+                  intent.putExtra(Intent.EXTRA_TITLE, fileName);
+                  startActivityForResult(call, intent, "handleSaveFileResult");
+              }
+
+              @ActivityCallback
+              public void handleSaveFileResult(PluginCall call, ActivityResult result) {
+                  if (call == null) {
+                      return;
+                  }
+                  if (result == null || result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+                      JSObject cancelled = new JSObject();
+                      cancelled.put("saved", false);
+                      cancelled.put("cancelled", true);
+                      call.resolve(cancelled);
+                      return;
+                  }
+                  Uri uri = result.getData().getData();
+                  if (uri == null) {
+                      JSObject cancelled = new JSObject();
+                      cancelled.put("saved", false);
+                      cancelled.put("cancelled", true);
+                      call.resolve(cancelled);
+                      return;
+                  }
+                  String content = call.getString("content", "");
+                  try {
+                      OutputStream os = null;
+                      try {
+                          os = getContext().getContentResolver().openOutputStream(uri, "wt");
+                      } catch (IllegalArgumentException | UnsupportedOperationException ignored) {
+                          os = getContext().getContentResolver().openOutputStream(uri, "w");
+                      }
+                      if (os == null) {
+                          call.reject("Impossibile aprire il file di destinazione.");
+                          return;
+                      }
+                      try (OutputStream out = os) {
+                          out.write(content.getBytes(StandardCharsets.UTF_8));
+                          out.flush();
+                      }
+                      JSObject ret = new JSObject();
+                      ret.put("saved", true);
+                      ret.put("cancelled", false);
+                      ret.put("uri", uri.toString());
+                      call.resolve(ret);
+                  } catch (Exception e) {
+                      call.reject("Errore durante il salvataggio: " + e.getMessage(), e);
+                  }
+              }
+          }
+          EOF
           cat << 'EOF' > android/app/src/main/java/it/spesasumisura/app/MainActivity.java
           package it.spesasumisura.app;
 
@@ -50,6 +131,7 @@ jobs:
           public class MainActivity extends BridgeActivity {
               @Override
               protected void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(BackupSaverPlugin.class);
                   super.onCreate(savedInstanceState);
                   hideSystemBars();
               }
